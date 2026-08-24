@@ -258,6 +258,27 @@ from (values
 ) as item(title,weekday,start_time,sort_order)
 where not exists (select 1 from public.training_templates);
 
+-- Editable text displayed inside the public hero card.
+create table if not exists public.site_content (
+  id text primary key,
+  hero_eyebrow text not null,
+  hero_title text not null,
+  hero_description text not null,
+  hero_tags text not null default '',
+  updated_at timestamptz not null default now()
+);
+alter table public.site_content enable row level security;
+drop policy if exists "site content public read" on public.site_content;
+create policy "site content public read" on public.site_content for select to anon, authenticated using (true);
+drop policy if exists "site content admin write" on public.site_content;
+create policy "site content admin write" on public.site_content for all to authenticated
+using (public.is_trainings_admin()) with check (public.is_trainings_admin());
+grant select on table public.site_content to anon, authenticated;
+grant insert, update, delete on table public.site_content to authenticated;
+insert into public.site_content (id,hero_eyebrow,hero_title,hero_description,hero_tags)
+values ('main','ТВОЕТО МЯСТО ЗА ДВИЖЕНИЕ',E'Сила. Баланс.\nДобро настроение.','Групови тренировки за всяко ниво в модерна и приятелска среда.','Pilates, Step Aerobics, Functional')
+on conflict (id) do nothing;
+
 do $$
 begin
   if not exists (
@@ -271,5 +292,11 @@ begin
     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'training_registrations'
   ) then
     alter publication supabase_realtime add table public.training_registrations;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'site_content'
+  ) then
+    alter publication supabase_realtime add table public.site_content;
   end if;
 end $$;

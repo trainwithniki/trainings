@@ -36,6 +36,22 @@ export type BookingReceipt = {
   name: string;
 };
 
+export type SiteContent = {
+  id: string;
+  hero_eyebrow: string;
+  hero_title: string;
+  hero_description: string;
+  hero_tags: string;
+};
+
+export const defaultSiteContent: SiteContent = {
+  id: 'main',
+  hero_eyebrow: 'ТВОЕТО МЯСТО ЗА ДВИЖЕНИЕ',
+  hero_title: 'Сила. Баланс.\nДобро настроение.',
+  hero_description: 'Групови тренировки за всяко ниво в модерна и приятелска среда.',
+  hero_tags: 'Pilates, Step Aerobics, Functional',
+};
+
 export const months = ['януари','февруари','март','април','май','юни','юли','август','септември','октомври','ноември','декември'];
 export const weekdays = ['Понеделник','Вторник','Сряда','Четвъртък','Петък','Събота','Неделя'];
 export const tariffLabels: Record<Tariff,string> = {
@@ -72,6 +88,13 @@ export async function loadSessions() {
   const {data,error}=await supabase.from('training_sessions').select('*').order('date').order('start_time');
   if(error) throw error;
   return (data||[]) as TrainingSession[];
+}
+
+export async function loadSiteContent() {
+  if(!supabase) return defaultSiteContent;
+  const {data,error}=await supabase.from('site_content').select('id,hero_eyebrow,hero_title,hero_description,hero_tags').eq('id','main').maybeSingle();
+  if(error) throw error;
+  return (data as SiteContent|null)??defaultSiteContent;
 }
 
 export async function loadAdminData() {

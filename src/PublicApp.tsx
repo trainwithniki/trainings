@@ -3,8 +3,8 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase, supabaseConfigured } from './supabase';
 import {
-  BookingReceipt, dayName, errorMessage, isBookingOpen, isCompleted, loadSessions, months, parseLocal,
-  prettyDate, shortTime, Tariff, TrainingSession,
+  BookingReceipt, dayName, defaultSiteContent, errorMessage, isBookingOpen, isCompleted, loadSessions, loadSiteContent, months, parseLocal,
+  prettyDate, shortTime, SiteContent, Tariff, TrainingSession,
 } from './training-data';
 
 type SessionState='open'|'upcoming'|'completed';
@@ -27,10 +27,11 @@ export default function PublicApp(){
   const [notice,setNotice]=useState('');
   const [calendarView,setCalendarView]=useState(()=>{const now=new Date();return new Date(now.getFullYear(),now.getMonth(),1);});
   const [clock,setClock]=useState(Date.now());
+  const [siteContent,setSiteContent]=useState<SiteContent>(defaultSiteContent);
 
   const refresh=useCallback(async()=>{
     try{
-      const data=await loadSessions();setSessions(data);setLoadError('');
+      const [data,content]=await Promise.all([loadSessions(),loadSiteContent()]);setSessions(data);setSiteContent(content);setLoadError('');
       setSelectedId(current=>data.some(item=>item.id===current)?current:(data.find(item=>stateOf(item)==='open')??data.find(item=>stateOf(item)==='upcoming')??data.at(-1))?.id??'');
     }catch(reason){setLoadError(errorMessage(reason));}
     finally{setLoading(false);}
@@ -41,7 +42,7 @@ export default function PublicApp(){
     refresh();
     if(!supabase)return;
     const client=supabase;
-    const channel=client.channel('trainings-public-live').on('postgres_changes',{event:'*',schema:'public',table:'training_sessions'},refresh).subscribe();
+    const channel=client.channel('trainings-public-live').on('postgres_changes',{event:'*',schema:'public',table:'training_sessions'},refresh).on('postgres_changes',{event:'*',schema:'public',table:'site_content'},refresh).subscribe();
     return()=>{client.removeChannel(channel);};
   },[refresh]);
   useEffect(()=>{const timer=window.setInterval(()=>setClock(Date.now()),1000);return()=>window.clearInterval(timer);},[]);
@@ -80,7 +81,7 @@ export default function PublicApp(){
   }
 
   return <main className="site-shell fbc-public live-public">
-    <section className="hero-card"><div className="hero-glow hero-glow-one"/><div className="hero-glow hero-glow-two"/><div className="brand-lockup"><span className="brand-fit">FIT</span><span className="brand-body">BODY CENTER</span></div><div className="hero-copy"><span className="eyebrow">ТВОЕТО МЯСТО ЗА ДВИЖЕНИЕ</span><h1>Сила. Баланс.<br/>Добро настроение.</h1><p>Групови тренировки за всяко ниво в модерна и приятелска среда.</p></div><div className="hero-tags"><span>Pilates</span><span>Step Aerobics</span><span>Functional</span></div></section>
+    <section className="hero-card"><div className="hero-glow hero-glow-one"/><div className="hero-glow hero-glow-two"/><div className="brand-lockup"><span className="brand-fit">FIT</span><span className="brand-body">BODY CENTER</span></div><div className="hero-copy"><span className="eyebrow">{siteContent.hero_eyebrow}</span><h1>{siteContent.hero_title.split('\n').map((line,index)=><span key={`${line}-${index}`}>{line}</span>)}</h1><p>{siteContent.hero_description}</p></div><div className="hero-tags">{siteContent.hero_tags.split(',').map(tag=><span key={tag.trim()}>{tag.trim()}</span>)}</div></section>
 
     {!supabaseConfigured&&<section className="public-empty"><strong>Сайтът очаква връзка с базата.</strong><p>Supabase настройките не са заредени.</p></section>}
     {loadError&&<section className="public-empty error"><strong>Тренировките не могат да се заредят.</strong><p>{loadError}</p></section>}
@@ -107,7 +108,16 @@ export default function PublicApp(){
 function FeaturedSession({session,now,own,onBook,onUnsubscribe,onFriend}:{session:TrainingSession;now:number;own:boolean;onBook:()=>void;onUnsubscribe:()=>void;onFriend:()=>void}){
   const state=stateOf(session,now),date=parseLocal(session.date),free=Math.max(0,session.capacity-session.registration_count);
   const status=state==='open'?'Записването е отворено':state==='completed'?'Проведена':session.status==='closed'?'Записването е спряно':`Ще бъде отворено за записване след: ${openingText(session,now)} (${formatDateTime(bookingOpenAt(session))} ч.)`;
-  return <section className={`featured-session exact-featured ${state}`}><div className="exact-featured-head"><div className="exact-date-block"><div><strong>{date.getDate()}</strong><b>.{String(date.getMonth()+1).padStart(2,'0')}</b></div><small>{date.getFullYear()}</small><span>{dayName(session.date)}</span><em>{shortTime(session.start_time)}</em></div><div className="exact-featured-name"><div className="fbc-training-title"><h2>{session.title}</h2><strong>FIT BODY CENTER</strong></div><span className={`exact-status ${state}`}>{status}</span></div></div>{state==='open'&&<BookingCountdown session={session} now={now}/>}<div className="exact-essentials"><div><span>МЯСТО</span><strong>{session.location.toUpperCase()}</strong></div><Stopwatch minutes={session.duration}/></div><div className="exact-capacity"><div><span>ЗАЕТИ МЕСТА<strong>{session.registration_count}</strong></span><span>СВОБОДНИ<strong>{free}</strong></span></div><i><b style={{width:`${Math.min(100,session.registration_count/session.capacity*100)}%`}}/></i></div>{state==='open'&&(own?<div className="exact-own-actions"><button onClick={onUnsubscribe}>ОТПИШИ СЕ</button><button onClick={onFriend}>ЗАПИШИ ПРИЯТЕЛ</button></div>:<button className="exact-book-button" onClick={onBook} disabled={free===0}>{free===0?'НЯМА СВОБОДНИ МЕСТА':'ЗАПИШИ СЕ'}</button>)}{state!=='open'&&<button className="exact-book-button" disabled>{state==='completed'?'ТРЕНИРОВКАТА Е ПРОВЕДЕНА':session.status==='closed'?'ЗАПИСВАНЕТО Е СПРЯНО':`ЗАПИСВАНЕ ОТ ${formatDateTime(bookingOpenAt(session))}`}</button>}</section>;
+  return <section className={`featured-session exact-featured ${state}`}><div className={`exact-featured-head ${state==='open'?'has-training-icon':''}`}><div className="exact-date-block"><div><strong>{date.getDate()}</strong><b>.{String(date.getMonth()+1).padStart(2,'0')}</b></div><small>{date.getFullYear()}</small><span>{dayName(session.date)}</span><em>{shortTime(session.start_time)}</em></div><div className="exact-featured-name"><div className="fbc-training-title"><h2 className="training-title-words">{session.title.trim().split(/\s+/).map((word,index)=><span key={`${word}-${index}`}>{word}</span>)}</h2><strong>FIT BODY CENTER</strong></div><span className={`exact-status ${state}`}>{status}</span></div>{state==='open'&&<TrainingIcon title={session.title}/>}</div>{state==='open'&&<BookingCountdown session={session} now={now}/>}<div className="exact-essentials"><div><span>МЯСТО</span><strong>{session.location.toUpperCase()}</strong></div><Stopwatch minutes={session.duration}/></div><div className="exact-capacity"><div><span>ЗАЕТИ МЕСТА<strong>{session.registration_count}</strong></span><span>СВОБОДНИ<strong>{free}</strong></span></div><i><b style={{width:`${Math.min(100,session.registration_count/session.capacity*100)}%`}}/></i></div>{state==='open'&&(own?<div className="exact-own-actions"><button onClick={onUnsubscribe}>ОТПИШИ СЕ</button><button onClick={onFriend}>ЗАПИШИ ПРИЯТЕЛ</button></div>:<button className="exact-book-button" onClick={onBook} disabled={free===0}>{free===0?'НЯМА СВОБОДНИ МЕСТА':'ЗАПИШИ СЕ'}</button>)}{state!=='open'&&<button className="exact-book-button" disabled>{state==='completed'?'ТРЕНИРОВКАТА Е ПРОВЕДЕНА':session.status==='closed'?'ЗАПИСВАНЕТО Е СПРЯНО':`ЗАПИСВАНЕ ОТ ${formatDateTime(bookingOpenAt(session))}`}</button>}</section>;
+}
+
+function TrainingIcon({title}:{title:string}){
+  const value=title.toLocaleLowerCase('bg');
+  if(value.includes('body training'))return <div className="training-icon" aria-hidden="true"><svg viewBox="0 0 100 100"><path d="M10 39h12v22H10zm68 0h12v22H78zM23 34h10v32H23zm44 0h10v32H67zM33 46h34v8H33z"/></svg></div>;
+  if(value.includes('зумба'))return <div className="training-icon" aria-hidden="true"><svg viewBox="0 0 100 100"><circle cx="35" cy="20" r="8"/><circle cx="66" cy="22" r="8"/><path d="M31 30c9 2 16 8 21 17l-9 7-8-10-9 18-10-5 12-25zm38 1c-8 2-15 9-18 18l9 6 7-11 8 19 10-5-11-27zM38 57l10 9-14 23H21zm25 0-10 10 14 22h13z"/></svg></div>;
+  if(value.includes('детска')||value.includes('кондиционен тим'))return <div className="training-icon" aria-hidden="true"><svg viewBox="0 0 100 100"><circle cx="28" cy="27" r="8"/><circle cx="50" cy="20" r="9"/><circle cx="72" cy="27" r="8"/><path d="M20 39h16l7 19-8 4-4-11-3 38H17l5-31-8 5-5-8zm22-7h17l9 22-9 4-5-12v43H43V47l-7 12-8-5zm22 7h16l11 16-7 7-10-11 5 38H68l-3-37-5 10-8-4z"/></svg></div>;
+  if(value.includes('strong')||value.includes('tae'))return <div className="training-icon" aria-hidden="true"><svg viewBox="0 0 100 100"><circle cx="39" cy="19" r="8"/><path d="M33 29l17 2 15 12-6 8-14-9-7 19 15 8-5 10-20-10-7 20-11-4 13-32-11-6 5-9 11 5zM54 57l34-9 3 10-33 13z"/></svg></div>;
+  return <div className="training-icon" aria-hidden="true"><svg viewBox="0 0 100 100"><circle cx="50" cy="18" r="9"/><path d="M43 30h14l7 24-9 4v10h22v9H57l20 12-6 8-21-13-21 13-6-8 20-12H23v-9h22V58l-9-4z"/></svg></div>;
 }
 
 function SessionCard({session,now,selected,onSelect,onBook}:{session:TrainingSession;now:number;selected:boolean;onSelect:()=>void;onBook?:()=>void}){
