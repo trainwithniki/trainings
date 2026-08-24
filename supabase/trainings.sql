@@ -1,0 +1,223 @@
+-- Fit Body Center: live trainings and registrations.
+-- Run after setup.sql in the separate Trainings Supabase project.
+
+create extension if not exists pgcrypto;
+
+create table if not exists public.training_sessions (
+  id uuid primary key default gen_random_uuid(),
+  date date not null,
+  start_time time not null,
+  title text not null default 'Тренировка',
+  location text not null default 'Fit Body Center',
+  duration integer not null default 60 check (duration between 10 and 300),
+  capacity integer not null default 20 check (capacity between 1 and 500),
+  status text not null default 'scheduled' check (status in ('scheduled','open','closed','completed')),
+  registration_count integer not null default 0 check (registration_count >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.training_registrations (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.training_sessions(id) on delete cascade,
+  name text not null check (char_length(trim(name)) between 2 and 120),
+  phone text not null check (char_length(regexp_replace(phone, '\D', '', 'g')) between 7 and 20),
+  phone_normalized text generated always as (regexp_replace(phone, '\D', '', 'g')) stored,
+  tariff text not null default 'none' check (tariff in ('none','card8','card12','multisport')),
+  booked_by text,
+  cancellation_token uuid not null default gen_random_uuid(),
+  cancelled_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists training_one_active_phone_per_session
+  on public.training_registrations (session_id, phone_normalized)
+  where cancelled_at is null;
+create index if not exists training_sessions_date_idx
+  on public.training_sessions (date, start_time);
+create index if not exists training_registrations_session_idx
+  on public.training_registrations (session_id, created_at);
+
+alter table public.training_sessions enable row level security;
+alter table public.training_registrations enable row level security;
+
+create or replace function public.is_trainings_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid()
+      and active = true
+      and role in ('owner','admin','editor')
+  )
+$$;
+
+revoke all on function public.is_trainings_admin() from public;
+grant execute on function public.is_trainings_admin() to authenticated;
+
+drop policy if exists "training sessions public read" on public.training_sessions;
+create policy "training sessions public read"
+on public.training_sessions for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "training sessions admin write" on public.training_sessions;
+create policy "training sessions admin write"
+on public.training_sessions for all
+to authenticated
+using (public.is_trainings_admin())
+with check (public.is_trainings_admin());
+
+drop policy if exists "training registrations admin read" on public.training_registrations;
+create policy "training registrations admin read"
+on public.training_registrations for select
+to authenticated
+using (public.is_trainings_admin());
+
+drop policy if exists "training registrations admin write" on public.training_registrations;
+create policy "training registrations admin write"
+on public.training_registrations for all
+to authenticated
+using (public.is_trainings_admin())
+with check (public.is_trainings_admin());
+
+create or replace function public.refresh_training_registration_count()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_id uuid;
+begin
+  target_id := coalesce(new.session_id, old.session_id);
+  update public.training_sessions s
+  set registration_count = (
+    select count(*)::integer
+    from public.training_registrations r
+    where r.session_id = target_id and r.cancelled_at is null
+  ), updated_at = now()
+  where s.id = target_id;
+
+  if tg_op = 'UPDATE' and old.session_id is distinct from new.session_id then
+    update public.training_sessions s
+    set registration_count = (
+      select count(*)::integer
+      from public.training_registrations r
+      where r.session_id = old.session_id and r.cancelled_at is null
+    ), updated_at = now()
+    where s.id = old.session_id;
+  end if;
+  return coalesce(new, old);
+end;
+$$;
+
+drop trigger if exists refresh_training_count on public.training_registrations;
+create trigger refresh_training_count
+after insert or delete or update of cancelled_at, session_id
+on public.training_registrations
+for each row execute function public.refresh_training_registration_count();
+
+create or replace function public.touch_training_session()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists touch_training_session on public.training_sessions;
+create trigger touch_training_session
+before update on public.training_sessions
+for each row execute function public.touch_training_session();
+
+create or replace function public.book_training(
+  p_session_id uuid,
+  p_name text,
+  p_phone text,
+  p_tariff text,
+  p_booked_by text default null
+)
+returns table (registration_id uuid, cancellation_token uuid)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target public.training_sessions%rowtype;
+  inserted public.training_registrations%rowtype;
+begin
+  if char_length(trim(p_name)) < 2 then raise exception 'Въведете име и фамилия.'; end if;
+  if char_length(regexp_replace(p_phone, '\D', '', 'g')) < 7 then raise exception 'Въведете валиден телефон.'; end if;
+  if p_tariff not in ('none','card8','card12','multisport') then raise exception 'Невалидна тарифа.'; end if;
+
+  select * into target from public.training_sessions where id = p_session_id for update;
+  if target.id is null then raise exception 'Тренировката не е намерена.'; end if;
+  if target.status <> 'open' then raise exception 'Записването за тази тренировка не е отворено.'; end if;
+  if (target.date + target.start_time) <= now() then raise exception 'Тренировката вече е започнала.'; end if;
+  if target.registration_count >= target.capacity then raise exception 'Няма свободни места.'; end if;
+
+  insert into public.training_registrations (session_id, name, phone, tariff, booked_by)
+  values (p_session_id, trim(p_name), trim(p_phone), p_tariff, nullif(trim(p_booked_by), ''))
+  returning * into inserted;
+
+  return query select inserted.id, inserted.cancellation_token;
+exception
+  when unique_violation then
+    raise exception 'Този телефон вече е записан за тренировката.';
+end;
+$$;
+
+create or replace function public.cancel_training_registration(
+  p_registration_id uuid,
+  p_cancellation_token uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  changed integer;
+begin
+  update public.training_registrations
+  set cancelled_at = now()
+  where id = p_registration_id
+    and cancellation_token = p_cancellation_token
+    and cancelled_at is null;
+  get diagnostics changed = row_count;
+  return changed = 1;
+end;
+$$;
+
+revoke all on table public.training_registrations from anon, public;
+grant select on table public.training_sessions to anon, authenticated;
+grant insert, update, delete on table public.training_sessions to authenticated;
+grant select, insert, update, delete on table public.training_registrations to authenticated;
+revoke all on function public.book_training(uuid,text,text,text,text) from public;
+revoke all on function public.cancel_training_registration(uuid,uuid) from public;
+grant execute on function public.book_training(uuid,text,text,text,text) to anon, authenticated;
+grant execute on function public.cancel_training_registration(uuid,uuid) to anon, authenticated;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'training_sessions'
+  ) then
+    alter publication supabase_realtime add table public.training_sessions;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'training_registrations'
+  ) then
+    alter publication supabase_realtime add table public.training_registrations;
+  end if;
+end $$;
