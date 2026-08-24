@@ -31,8 +31,10 @@ export default function PublicApp(){
 
   const refresh=useCallback(async()=>{
     try{
-      const [data,content]=await Promise.all([loadSessions(),loadSiteContent()]);setSessions(data);setSiteContent(content);setLoadError('');
-      setSelectedId(current=>data.some(item=>item.id===current)?current:(data.find(item=>stateOf(item)==='open')??data.find(item=>stateOf(item)==='upcoming')??data.at(-1))?.id??'');
+      const [data,content]=await Promise.all([loadSessions(),loadSiteContent()]);
+      const ordered=[...data].sort(sortSessions);
+      setSessions(ordered);setSiteContent(content);setLoadError('');
+      setSelectedId(current=>ordered.some(item=>item.id===current)?current:(ordered.find(item=>stateOf(item)!=='completed')??ordered.at(-1))?.id??'');
     }catch(reason){setLoadError(errorMessage(reason));}
     finally{setLoading(false);}
   },[]);
