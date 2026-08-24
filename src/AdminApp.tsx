@@ -4,11 +4,22 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { Profile, supabase, supabaseConfigured } from './supabase';
 import {
-  dayName, errorMessage, isCompleted, loadAdminData, months, shortDate, shortTime,
+  dayName, errorMessage, isBookingOpen, isCompleted, loadAdminData, months, shortDate, shortTime,
   TrainingRegistration, TrainingSession, TrainingStatus,
 } from './training-data';
 
 const baseUrl = import.meta.env.BASE_URL;
+type QuickTemplate={title:string;weekday:number;time:string};
+const quickTemplates:QuickTemplate[]=[
+  {title:'Пилатес',weekday:1,time:'07:45'},{title:'Body Training',weekday:1,time:'08:45'},{title:'Пилатес',weekday:1,time:'18:30'},{title:'Strong Body',weekday:1,time:'19:30'},
+  {title:'Body Balance',weekday:2,time:'08:00'},{title:'Зумба',weekday:2,time:'18:30'},
+  {title:'Body Training',weekday:3,time:'08:00'},{title:'Детска кондиционна',weekday:3,time:'17:30'},{title:'Пилатес',weekday:3,time:'18:30'},{title:'Tae Bo',weekday:3,time:'19:30'},
+  {title:'Body Balance',weekday:4,time:'08:00'},{title:'Зумба',weekday:4,time:'18:30'},
+  {title:'Пилатес',weekday:5,time:'07:45'},{title:'Body Training',weekday:5,time:'08:45'},{title:'Tae Bo',weekday:5,time:'19:00'},
+  {title:'Strong Body',weekday:6,time:'09:30'},{title:'Детска кондиционна',weekday:6,time:'10:30'},
+  {title:'Кондиционен тим',weekday:7,time:'16:45'},
+];
+const shortWeekdays=['','Пон','Вто','Сря','Чет','Пет','Съб','Нед'];
 
 export default function AdminApp() {
   const [loading,setLoading]=useState(true);
@@ -45,6 +56,7 @@ function AdminDashboard(){
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
   const [editor,setEditor]=useState<TrainingSession|null|undefined>(undefined);
+  const [clock,setClock]=useState(Date.now());
 
   const refresh=useCallback(async()=>{
     try{const data=await loadAdminData();setSessions(data.sessions);setRegistrations(data.registrations);setError('');}
@@ -62,11 +74,12 @@ function AdminDashboard(){
       .subscribe();
     return()=>{client.removeChannel(channel);};
   },[refresh]);
+  useEffect(()=>{const timer=window.setInterval(()=>setClock(Date.now()),30000);return()=>window.clearInterval(timer);},[]);
 
-  const now=Date.now();
+  const now=clock;
   const upcoming=useMemo(()=>sessions.filter(item=>!isCompleted(item,now)).sort(sortSessions),[sessions,now]);
   const completed=useMemo(()=>sessions.filter(item=>isCompleted(item,now)).sort((a,b)=>-sortSessions(a,b)),[sessions,now]);
-  const active=upcoming.filter(item=>item.status==='open');
+  const active=upcoming.filter(item=>isBookingOpen(item,now));
   const registrationsFor=(id:string)=>registrations.filter(item=>item.session_id===id&&!item.cancelled_at);
 
   async function changeStatus(session:TrainingSession,status:TrainingStatus){
@@ -107,7 +120,7 @@ function AdminDashboard(){
     <section className="admin-created-section">
       <div className="admin-section-heading"><div><span>СЪЗДАДЕНИ</span><h2>Активни и предстоящи</h2></div><strong>{upcoming.length}</strong></div>
       {!loading&&upcoming.length===0&&<EmptyAdmin title="Няма създадени тренировки" text="Списъкът е празен и готов за Вашите тренировки."/>}
-      <div className="admin-session-list">{upcoming.map(session=><AdminSessionRow key={session.id} session={session} count={registrationsFor(session.id).length} onEdit={()=>setEditor(session)} onStart={()=>changeStatus(session,'open')} onStop={()=>changeStatus(session,'closed')} onDelete={()=>deleteSession(session)}/>)}</div>
+      <div className="admin-session-list">{upcoming.map(session=><AdminSessionRow key={session.id} session={session} bookingOpen={isBookingOpen(session,now)} count={registrationsFor(session.id).length} onEdit={()=>setEditor(session)} onStart={()=>changeStatus(session,'open')} onStop={()=>changeStatus(session,'closed')} onDelete={()=>deleteSession(session)}/>)}</div>
     </section>
 
     <section className="admin-completed-section">
@@ -137,8 +150,8 @@ function AttendeeRow({person,index,onDelete}:{person:TrainingRegistration;index:
 }
 function TariffBadge({tariff}:{tariff:TrainingRegistration['tariff']}){if(tariff==='none')return null;if(tariff==='multisport')return <span className="tariff-badge multisport">MultiSport</span>;return <span className={`tariff-badge ${tariff}`}>{tariff==='card8'?'8':'12'}</span>;}
 
-function AdminSessionRow({session,count,onEdit,onStart,onStop,onDelete}:{session:TrainingSession;count:number;onEdit:()=>void;onStart:()=>void;onStop:()=>void;onDelete:()=>void}){
-  return <article className={`admin-session-row ${session.status==='open'?'is-open':''}`}><div className="admin-row-status"><span>{session.status==='open'?'● АКТИВНА':session.status==='closed'?'● СПРЯНА':'● ПРЕДСТОЯЩА'}</span></div><div className="admin-row-main"><div className="admin-row-date"><strong>{shortDate(session.date)}</strong><span>{dayName(session.date)}</span><i>{shortTime(session.start_time)}</i></div><div><h3>{session.title}</h3><p>{session.location} · {session.duration} минути · {count}/{session.capacity} записани</p></div></div><div className="admin-row-actions"><button onClick={onEdit}>Редактирай</button><button className="start" onClick={onStart} disabled={session.status==='open'}>Старт</button><button className="stop" onClick={onStop} disabled={session.status!=='open'}>Стоп</button><button className="delete" onClick={onDelete}>Изтрий</button></div></article>;
+function AdminSessionRow({session,bookingOpen,count,onEdit,onStart,onStop,onDelete}:{session:TrainingSession;bookingOpen:boolean;count:number;onEdit:()=>void;onStart:()=>void;onStop:()=>void;onDelete:()=>void}){
+  return <article className={`admin-session-row ${bookingOpen?'is-open':''}`}><div className="admin-row-status"><span>{bookingOpen?'● АКТИВНА':session.status==='closed'?'● СПРЯНА':'● ПРЕДСТОЯЩА'}</span></div><div className="admin-row-main"><div className="admin-row-date"><strong>{shortDate(session.date)}</strong><span>{dayName(session.date)}</span><i>{shortTime(session.start_time)}</i></div><div><h3>{session.title}</h3><p>{session.location} · {session.duration} минути · {count}/{session.capacity} записани · автоматично {session.booking_open_hours??48} ч. преди</p></div></div><div className="admin-row-actions"><button onClick={onEdit}>Редактирай</button><button className="start" onClick={onStart} disabled={bookingOpen}>Старт</button><button className="stop" onClick={onStop} disabled={!bookingOpen}>Стоп</button><button className="delete" onClick={onDelete}>Изтрий</button></div></article>;
 }
 
 function CompletedTraining({session,registrations,onEdit,onDelete}:{session:TrainingSession;registrations:TrainingRegistration[];onEdit:()=>void;onDelete:()=>void}){
@@ -149,11 +162,12 @@ function EmptyAdmin({title,text}:{title:string;text:string}){return <div classNa
 function SessionEditor({session,onClose,onSaved}:{session:TrainingSession|null;onClose:()=>void;onSaved:()=>void}){
   const initialDate=session?.date??new Date().toISOString().slice(0,10);
   const initialTime=shortTime(session?.start_time??'18:30');
-  const [date,setDate]=useState(initialDate);const [hour,setHour]=useState(initialTime.slice(0,2));const [minute,setMinute]=useState(String(Math.round(Number(initialTime.slice(3,5))/10)*10%60).padStart(2,'0'));
-  const [title,setTitle]=useState(session?.title??'Pilates');const [location,setLocation]=useState(session?.location??'Fit Body Center');const [duration,setDuration]=useState(session?.duration??60);const [capacity,setCapacity]=useState(session?.capacity??20);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
+  const [date,setDate]=useState(initialDate);const [hour,setHour]=useState(initialTime.slice(0,2));const [minute,setMinute]=useState(initialTime.slice(3,5));
+  const [title,setTitle]=useState(session?.title??'Пилатес');const [location,setLocation]=useState(session?.location??'Fit Body Center');const [duration,setDuration]=useState(session?.duration??60);const [capacity,setCapacity]=useState(session?.capacity??20);const [bookingOpenHours,setBookingOpenHours]=useState(session?.booking_open_hours??48);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
   useEffect(()=>{document.body.classList.add('modal-open');return()=>document.body.classList.remove('modal-open');},[]);
-  async function save(event:FormEvent<HTMLFormElement>){event.preventDefault();if(!supabase)return;setBusy(true);setError('');const values={date,start_time:`${hour}:${minute}:00`,title:title.trim(),location:location.trim(),duration,capacity,status:session?.status??'scheduled'};const result=session?await supabase.from('training_sessions').update(values).eq('id',session.id):await supabase.from('training_sessions').insert(values);setBusy(false);if(result.error)setError(errorMessage(result.error));else onSaved();}
-  return <div className="editor-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><form className="training-editor live-editor" onSubmit={save}><div className="editor-handle"/><div className="editor-title"><div><span>{session?'РЕДАКЦИЯ':'НОВА ТРЕНИРОВКА'}</span><h2>{session?'Редактирай тренировката':'Създай тренировка'}</h2></div><button type="button" onClick={onClose}>×</button></div><label>ДАТА<ModernDatePicker value={date} onChange={setDate}/></label><label>ЧАС (24 ЧАСА)<div className="split-time"><select value={hour} onChange={event=>setHour(event.target.value)}>{Array.from({length:24},(_,index)=><option key={index} value={String(index).padStart(2,'0')}>{String(index).padStart(2,'0')}</option>)}</select><span>:</span><select value={minute} onChange={event=>setMinute(event.target.value)}>{[0,10,20,30,40,50].map(value=><option key={value} value={String(value).padStart(2,'0')}>{String(value).padStart(2,'0')}</option>)}</select><strong>{hour}:{minute}</strong></div></label><label>ИМЕ НА ТРЕНИРОВКАТА<input value={title} onChange={event=>setTitle(event.target.value)} required placeholder="Pilates"/></label><label>МЯСТО<input value={location} onChange={event=>setLocation(event.target.value)} required/></label><div className="editor-row"><label>МЕСТА<input type="number" min="1" max="500" value={capacity} onChange={event=>setCapacity(Number(event.target.value))}/></label><label>МИНУТИ<input type="number" min="10" max="300" step="5" value={duration} onChange={event=>setDuration(Number(event.target.value))}/></label></div>{error&&<div className="login-error">{error}</div>}<button className="editor-save" disabled={busy}>{busy?'Запазване…':session?'Запази промените':'Създай тренировката'}</button></form></div>;
+  function applyTemplate(template:QuickTemplate){const next=nextWeekday(template.weekday);setDate(next);setTitle(template.title);setHour(template.time.slice(0,2));setMinute(template.time.slice(3,5));}
+  async function save(event:FormEvent<HTMLFormElement>){event.preventDefault();if(!supabase)return;setBusy(true);setError('');const values={date,start_time:`${hour}:${minute}:00`,title:title.trim(),location:location.trim(),duration,capacity,booking_open_hours:bookingOpenHours,status:session?.status??'scheduled'};const result=session?await supabase.from('training_sessions').update(values).eq('id',session.id):await supabase.from('training_sessions').insert(values);setBusy(false);if(result.error)setError(errorMessage(result.error));else onSaved();}
+  return <div className="editor-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><form className="training-editor live-editor" onSubmit={save}><div className="editor-handle"/><div className="editor-title"><div><span>{session?'РЕДАКЦИЯ':'НОВА ТРЕНИРОВКА'}</span><h2>{session?'Редактирай тренировката':'Създай тренировка'}</h2></div><button type="button" onClick={onClose}>×</button></div>{!session&&<section className="schedule-templates"><div><strong>ГОТОВИ ТРЕНИРОВКИ</strong><span>Избери бутон и полетата ще се попълнят автоматично</span></div><div className="schedule-template-grid">{quickTemplates.map((template,index)=><button type="button" key={`${template.weekday}-${template.time}-${index}`} onClick={()=>applyTemplate(template)}><span>{shortWeekdays[template.weekday]} · {template.time}</span><strong>{template.title}</strong></button>)}</div></section>}<label>ДАТА<ModernDatePicker value={date} onChange={setDate}/></label><label>ЧАС (24 ЧАСА)<div className="split-time"><select value={hour} onChange={event=>setHour(event.target.value)}>{Array.from({length:24},(_,index)=><option key={index} value={String(index).padStart(2,'0')}>{String(index).padStart(2,'0')}</option>)}</select><span>:</span><select value={minute} onChange={event=>setMinute(event.target.value)}>{[0,10,20,30,40,45,50].map(value=><option key={value} value={String(value).padStart(2,'0')}>{String(value).padStart(2,'0')}</option>)}</select><strong>{hour}:{minute}</strong></div></label><label>ИМЕ НА ТРЕНИРОВКАТА<input value={title} onChange={event=>setTitle(event.target.value)} required placeholder="Пилатес"/></label><label>МЯСТО<input value={location} onChange={event=>setLocation(event.target.value)} required/></label><div className="editor-row"><label>МЕСТА<input type="number" min="1" max="500" value={capacity} onChange={event=>setCapacity(Number(event.target.value))}/></label><label>МИНУТИ<input type="number" min="10" max="300" step="5" value={duration} onChange={event=>setDuration(Number(event.target.value))}/></label></div><label>АВТОМАТИЧНО АКТИВИРАНЕ<div className="activation-hours"><input type="number" min="0" max="720" step="1" value={bookingOpenHours} onChange={event=>setBookingOpenHours(Number(event.target.value))}/><span>часа преди тренировката</span>{[24,48,72].map(value=><button type="button" key={value} className={bookingOpenHours===value?'selected':''} onClick={()=>setBookingOpenHours(value)}>{value} ч.</button>)}</div></label>{error&&<div className="login-error">{error}</div>}<button className="editor-save" disabled={busy}>{busy?'Запазване…':session?'Запази промените':'Създай тренировката'}</button></form></div>;
 }
 
 function ModernDatePicker({value,onChange}:{value:string;onChange:(date:string)=>void}){
@@ -165,6 +179,7 @@ function ModernDatePicker({value,onChange}:{value:string;onChange:(date:string)=
 }
 
 function sortSessions(a:TrainingSession,b:TrainingSession){return `${a.date}T${a.start_time}`.localeCompare(`${b.date}T${b.start_time}`);}
+function nextWeekday(target:number){const today=new Date();const current=today.getDay()||7;let diff=(target-current+7)%7;if(diff===0)diff=7;today.setDate(today.getDate()+diff);return `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;}
 
 function LoginPanel(){
   const [mode,setMode]=useState<'login'|'activate'>('login');const [error,setError]=useState('');const [message,setMessage]=useState('');const [busy,setBusy]=useState(false);

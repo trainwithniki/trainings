@@ -11,6 +11,7 @@ export type TrainingSession = {
   location: string;
   duration: number;
   capacity: number;
+  booking_open_hours: number;
   status: TrainingStatus;
   registration_count: number;
   created_at: string;
@@ -59,6 +60,11 @@ export function shortDate(date:string) { return `${date.slice(8,10)}.${date.slic
 export function shortTime(time:string) { return time.slice(0,5); }
 export function isCompleted(session:TrainingSession,now=Date.now()) {
   return session.status==='completed' || parseLocal(session.date,session.start_time).getTime()<=now;
+}
+export function isBookingOpen(session:TrainingSession,now=Date.now()) {
+  if(isCompleted(session,now)||session.status==='closed'||session.status==='completed')return false;
+  if(session.status==='open')return true;
+  return now>=parseLocal(session.date,session.start_time).getTime()-(session.booking_open_hours??48)*3600000;
 }
 
 export async function loadSessions() {

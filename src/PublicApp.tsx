@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase, supabaseConfigured } from './supabase';
 import {
-  BookingReceipt, dayName, errorMessage, isCompleted, loadSessions, months, parseLocal,
+  BookingReceipt, dayName, errorMessage, isBookingOpen, isCompleted, loadSessions, months, parseLocal,
   prettyDate, shortTime, Tariff, TrainingSession,
 } from './training-data';
 
@@ -11,7 +11,7 @@ type SessionState='open'|'upcoming'|'completed';
 const bookingKey='fit-body-center-live-bookings';
 const baseUrl=import.meta.env.BASE_URL;
 
-function stateOf(session:TrainingSession):SessionState{return isCompleted(session)?'completed':session.status==='open'?'open':'upcoming';}
+function stateOf(session:TrainingSession,now=Date.now()):SessionState{return isCompleted(session,now)?'completed':isBookingOpen(session,now)?'open':'upcoming';}
 
 export default function PublicApp(){
   const [sessions,setSessions]=useState<TrainingSession[]>([]);
@@ -22,6 +22,7 @@ export default function PublicApp(){
   const [receipts,setReceipts]=useState<Record<string,BookingReceipt>>({});
   const [notice,setNotice]=useState('');
   const [calendarView,setCalendarView]=useState(()=>{const now=new Date();return new Date(now.getFullYear(),now.getMonth(),1);});
+  const [clock,setClock]=useState(Date.now());
 
   const refresh=useCallback(async()=>{
     try{
@@ -39,12 +40,13 @@ export default function PublicApp(){
     const channel=client.channel('trainings-public-live').on('postgres_changes',{event:'*',schema:'public',table:'training_sessions'},refresh).subscribe();
     return()=>{client.removeChannel(channel);};
   },[refresh]);
+  useEffect(()=>{const timer=window.setInterval(()=>setClock(Date.now()),30000);return()=>window.clearInterval(timer);},[]);
   useEffect(()=>{document.body.classList.toggle('modal-open',Boolean(modal));return()=>document.body.classList.remove('modal-open');},[modal]);
 
   const selected=sessions.find(item=>item.id===selectedId)??null;
   const ownReceipt=selected?receipts[selected.id]:undefined;
-  const upcoming=sessions.filter(item=>stateOf(item)!=='completed').sort(sortSessions);
-  const completed=sessions.filter(item=>stateOf(item)==='completed').sort((a,b)=>-sortSessions(a,b));
+  const upcoming=sessions.filter(item=>stateOf(item,clock)!=='completed').sort(sortSessions);
+  const completed=sessions.filter(item=>stateOf(item,clock)==='completed').sort((a,b)=>-sortSessions(a,b));
 
   const calendarDays=useMemo(()=>{
     const year=calendarView.getFullYear(),month=calendarView.getMonth(),offset=(new Date(year,month,1).getDay()+6)%7;
@@ -77,7 +79,7 @@ export default function PublicApp(){
     {loadError&&<section className="public-empty error"><strong>Тренировките не могат да се заредят.</strong><p>{loadError}</p></section>}
     {loading&&<section className="public-empty"><strong>Зареждане…</strong></section>}
     {!loading&&!selected&&<section className="public-empty ready"><strong>Очаквайте новите тренировки</strong><p>Календарът е готов. Скоро тук ще се появят тренировки за записване.</p></section>}
-    {selected&&<FeaturedSession session={selected} own={Boolean(ownReceipt)} onBook={()=>setModal('booking')} onUnsubscribe={unsubscribe} onFriend={()=>setModal('friend')}/>}
+    {selected&&<FeaturedSession session={selected} now={clock} own={Boolean(ownReceipt)} onBook={()=>setModal('booking')} onUnsubscribe={unsubscribe} onFriend={()=>setModal('friend')}/>}
 
     {selected&&ownReceipt&&<section className="own-booking"><span className="own-check">✓</span><div><strong>Записали сте се за {selected.title}</strong><p>{selected.location} · {prettyDate(selected.date)} ({dayName(selected.date)}) · {shortTime(selected.start_time)} ч.</p></div></section>}
 
@@ -90,13 +92,13 @@ export default function PublicApp(){
     <section className="location-section exact-section"><h2 className="exact-section-title">Точна локация</h2><p className="exact-section-copy">Fit Body Center · гр. Варна</p><a className="map-card" href="https://www.google.com/maps/search/?api=1&query=Fit+Body+Center+Varna" target="_blank" rel="noreferrer"><img src={`${baseUrl}fit-body-center-map.png`} alt="Карта до Fit Body Center"/><span><b>📍 Fit Body Center</b><small>гр. Варна, ж.к. Възраждане IV, над парка, срещу бл. 78</small></span></a><a className="maps-button" href="https://www.google.com/maps/search/?api=1&query=Fit+Body+Center+Varna" target="_blank" rel="noreferrer">Отвори в Google Maps</a></section>
     <footer className="site-footer"><a href={`${baseUrl}trainings/admin.html`}>Powered by Trainings</a></footer>
     {notice&&<button className="toast" onClick={()=>setNotice('')}>{notice}<span>×</span></button>}
-    {selected&&stateOf(selected)==='open'&&<div className="sticky-booking exact-sticky"><button onClick={()=>ownReceipt?setModal('friend'):setModal('booking')}><span>ТРЕНИРОВКА НА {selected.date.slice(8)}.{selected.date.slice(5,7)} · {shortTime(selected.start_time)}</span><strong>{ownReceipt?'ЗАПИШИ ПРИЯТЕЛ':`ЗАПИШИ СЕ · ${Math.max(0,selected.capacity-selected.registration_count)} СВОБОДНИ МЕСТА`}</strong></button></div>}
+    {selected&&stateOf(selected,clock)==='open'&&<div className="sticky-booking exact-sticky"><button onClick={()=>ownReceipt?setModal('friend'):setModal('booking')}><span>ТРЕНИРОВКА НА {selected.date.slice(8)}.{selected.date.slice(5,7)} · {shortTime(selected.start_time)}</span><strong>{ownReceipt?'ЗАПИШИ ПРИЯТЕЛ':`ЗАПИШИ СЕ · ${Math.max(0,selected.capacity-selected.registration_count)} СВОБОДНИ МЕСТА`}</strong></button></div>}
     {modal&&selected&&<BookingModal friend={modal==='friend'} session={selected} onClose={()=>setModal(null)} onSubmit={submitBooking}/>}
   </main>;
 }
 
-function FeaturedSession({session,own,onBook,onUnsubscribe,onFriend}:{session:TrainingSession;own:boolean;onBook:()=>void;onUnsubscribe:()=>void;onFriend:()=>void}){
-  const state=stateOf(session),date=parseLocal(session.date),free=Math.max(0,session.capacity-session.registration_count);
+function FeaturedSession({session,now,own,onBook,onUnsubscribe,onFriend}:{session:TrainingSession;now:number;own:boolean;onBook:()=>void;onUnsubscribe:()=>void;onFriend:()=>void}){
+  const state=stateOf(session,now),date=parseLocal(session.date),free=Math.max(0,session.capacity-session.registration_count);
   return <section className={`featured-session exact-featured ${state}`}><div className="exact-featured-head"><div className="exact-date-block"><div><strong>{date.getDate()}</strong><b>.{String(date.getMonth()+1).padStart(2,'0')}</b></div><small>{date.getFullYear()}</small><span>{dayName(session.date)}</span><em>{shortTime(session.start_time)}</em></div><div className="exact-featured-name"><h2>{session.title}</h2><strong>{session.location.toUpperCase()}</strong><span className={`exact-status ${state}`}>{state==='open'?'Записването е отворено':state==='completed'?'Проведена':session.status==='closed'?'Записването е спряно':'Предстояща'}</span></div></div><div className="exact-essentials"><div><span>МЯСТО</span><strong>{session.location.toUpperCase()}</strong></div><Stopwatch minutes={session.duration}/></div><div className="exact-capacity"><div><span>ЗАЕТИ МЕСТА<strong>{session.registration_count}</strong></span><span>СВОБОДНИ<strong>{free}</strong></span></div><i><b style={{width:`${Math.min(100,session.registration_count/session.capacity*100)}%`}}/></i></div>{state==='open'&&(own?<div className="exact-own-actions"><button onClick={onUnsubscribe}>ОТПИШИ СЕ</button><button onClick={onFriend}>ЗАПИШИ ПРИЯТЕЛ</button></div>:<button className="exact-book-button" onClick={onBook} disabled={free===0}>{free===0?'НЯМА СВОБОДНИ МЕСТА':'ЗАПИШИ СЕ'}</button>)}{state!=='open'&&<button className="exact-book-button" disabled>{state==='completed'?'ТРЕНИРОВКАТА Е ПРОВЕДЕНА':session.status==='closed'?'ЗАПИСВАНЕТО Е СПРЯНО':'ОЧАКВАЙТЕ ОТВАРЯНЕ'}</button>}</section>;
 }
 

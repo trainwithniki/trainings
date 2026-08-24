@@ -11,11 +11,16 @@ create table if not exists public.training_sessions (
   location text not null default 'Fit Body Center',
   duration integer not null default 60 check (duration between 10 and 300),
   capacity integer not null default 20 check (capacity between 1 and 500),
+  booking_open_hours integer not null default 48 check (booking_open_hours between 0 and 720),
   status text not null default 'scheduled' check (status in ('scheduled','open','closed','completed')),
   registration_count integer not null default 0 check (registration_count >= 0),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.training_sessions
+  add column if not exists booking_open_hours integer not null default 48
+  check (booking_open_hours between 0 and 720);
 
 create table if not exists public.training_registrations (
   id uuid primary key default gen_random_uuid(),
@@ -160,8 +165,11 @@ begin
 
   select * into target from public.training_sessions where id = p_session_id for update;
   if target.id is null then raise exception 'Тренировката не е намерена.'; end if;
-  if target.status <> 'open' then raise exception 'Записването за тази тренировка не е отворено.'; end if;
-  if (target.date + target.start_time) <= now() then raise exception 'Тренировката вече е започнала.'; end if;
+  if target.status = 'closed' or target.status = 'completed' or (
+    target.status <> 'open' and
+    timezone('Europe/Sofia', now()) < (target.date + target.start_time) - make_interval(hours => target.booking_open_hours)
+  ) then raise exception 'Записването за тази тренировка не е отворено.'; end if;
+  if (target.date + target.start_time) <= timezone('Europe/Sofia', now()) then raise exception 'Тренировката вече е започнала.'; end if;
   if target.registration_count >= target.capacity then raise exception 'Няма свободни места.'; end if;
 
   insert into public.training_registrations (session_id, name, phone, tariff, booked_by)
