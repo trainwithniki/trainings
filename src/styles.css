@@ -240,3 +240,40 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
   .matched-admin-head .admin-header-actions{gap:5px}
   .matched-admin-head .site-button{min-height:32px;padding:0 9px;font-size:8px}
 }
+
+/* Modern generated artwork for every training card */
+.training-icon{
+  overflow:visible;
+  border:1.5px solid #ffd629;
+  background:radial-gradient(circle at 50% 48%,rgba(255,246,153,.56) 0,rgba(255,215,40,.18) 42%,rgba(255,183,0,.04) 70%,transparent 72%);
+  box-shadow:0 0 5px rgba(255,214,41,.95),0 0 16px rgba(255,195,18,.62),inset 0 0 14px rgba(255,229,91,.28);
+  filter:none;
+}
+.training-icon img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  filter:drop-shadow(0 4px 5px rgba(44,18,73,.24));
+}
+.training-icon.compact{
+  width:62px;
+  height:76px;
+  border-radius:17px;
+  box-shadow:0 0 4px rgba(255,214,41,.95),0 0 12px rgba(255,195,18,.58),inset 0 0 10px rgba(255,229,91,.23);
+}
+.exact-session-top.has-list-icon{
+  grid-template-columns:108px minmax(0,1fr) 62px;
+  gap:9px;
+  align-items:center;
+}
+.has-list-icon .exact-session-info{min-width:0}
+.has-list-icon .exact-session-info h3{overflow-wrap:anywhere}
+@media(min-width:760px){
+  .exact-session-top.has-list-icon{grid-template-columns:90px minmax(0,1fr) 50px;gap:8px}
+  .training-icon.compact{width:50px;height:66px;border-radius:14px}
+}
+@media(max-width:430px){
+  .exact-session-top.has-list-icon{grid-template-columns:96px minmax(0,1fr) 56px;gap:7px}
+  .training-icon.compact{width:56px;height:72px;border-radius:15px}
+}
