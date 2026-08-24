@@ -147,7 +147,7 @@ function ActiveTraining({session,registrations,onEdit,onStop,onEditRegistration,
 }
 
 function AttendeeRow({person,index,onEdit,onDelete}:{person:TrainingRegistration;index:number;onEdit?:()=>void;onDelete?:()=>void}){
-  return <div className="live-attendee-row"><span className="attendee-number">{index+1}</span><div className="attendee-identity"><strong>{person.name}</strong>{person.booked_by&&<small>Записан от: {person.booked_by}</small>}</div><TariffBadge tariff={person.tariff}/><a href={`tel:${person.phone}`}>{person.phone}</a><div className="attendee-actions">{onEdit&&<button className="attendee-edit" onClick={onEdit} aria-label={`Редактирай ${person.name}`}>✎</button>}{onDelete&&<button className="attendee-delete" onClick={onDelete} aria-label={`Премахни ${person.name}`}>×</button>}</div></div>;
+  return <div className="live-attendee-row"><span className="attendee-number">{index+1}.</span><div className="attendee-identity"><strong>{person.name}</strong>{person.booked_by&&<small>Записан от: {person.booked_by}</small>}</div><a className="attendee-phone" href={`tel:${person.phone}`}>{person.phone}</a><TariffBadge tariff={person.tariff}/><div className="attendee-actions">{onEdit&&<button className="attendee-edit" onClick={onEdit} aria-label={`Редактирай ${person.name}`}>✎</button>}{onDelete&&<button className="attendee-delete" onClick={onDelete} aria-label={`Премахни ${person.name}`}>×</button>}</div></div>;
 }
 function TariffBadge({tariff}:{tariff:TrainingRegistration['tariff']}){if(tariff==='none')return <span className="tariff-spacer"/>;if(tariff==='multisport')return <span className="tariff-badge multisport">MultiSport</span>;return <span className={`tariff-badge ${tariff}`}>{tariff==='card8'?'8':'12'}</span>;}
 
