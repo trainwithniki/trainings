@@ -47,7 +47,7 @@ export type UserInvite = {
   id: string;
   email: string;
   display_name: string | null;
-  role: Exclude<ProfileRole, 'owner'>;
+  role: ProfileRole;
   accepted_at: string | null;
   created_at: string;
 };

@@ -17,7 +17,9 @@ create table if not exists public.user_invites (
   id uuid primary key default gen_random_uuid(),
   email citext not null unique,
   display_name text,
-  role text not null default 'editor' check (role in ('admin','editor')),
+  -- "owner" is used only for the one-time bootstrap invite created directly
+  -- in Supabase. The admin RPC below can still invite only admin/editor roles.
+  role text not null default 'editor' check (role in ('owner','admin','editor')),
   invited_by uuid references public.profiles(id) on delete set null,
   accepted_at timestamptz,
   created_at timestamptz not null default now()
@@ -177,6 +179,5 @@ revoke all on function public.admin_set_user_access(uuid,text,boolean) from publ
 grant execute on function public.admin_invite_user(text,text,text) to authenticated;
 grant execute on function public.admin_set_user_access(uuid,text,boolean) to authenticated;
 
--- Initial owner setup (run once after creating the first Auth user):
--- update public.profiles set role = 'owner', active = true
--- where lower(email::text) = lower('YOUR_ADMIN_EMAIL');
+-- Bootstrap the first owner by inserting one owner invitation directly in the
+-- Supabase SQL Editor. Do not commit the real email address to this file.
