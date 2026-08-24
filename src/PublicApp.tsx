@@ -80,7 +80,7 @@ export default function PublicApp(){
   }
 
   return <main className="site-shell fbc-public live-public">
-    <section className="hero-card fbc-matched-hero"><div className="hero-glow hero-glow-one"/><div className="hero-glow hero-glow-two"/><div className="fbc-hero-title"><strong>FIT BODY CENTER</strong></div><div className="hero-copy"><h1>MOVE. SWEAT.<br/>FEEL GOOD.</h1><p>Енергична тренировка с музика, движение и настроение във Fit Body Center.</p></div><div className="hero-tags"><span>⚡ Cardio</span><span>🔥 Tone</span><span>🎵 Music</span><span>⏱ 60 min</span></div></section>
+    <section className="hero-card"><div className="hero-glow hero-glow-one"/><div className="hero-glow hero-glow-two"/><div className="brand-lockup"><span className="brand-fit">FIT</span><span className="brand-body">BODY CENTER</span></div><div className="hero-copy"><span className="eyebrow">ТВОЕТО МЯСТО ЗА ДВИЖЕНИЕ</span><h1>Сила. Баланс.<br/>Добро настроение.</h1><p>Групови тренировки за всяко ниво в модерна и приятелска среда.</p></div><div className="hero-tags"><span>Pilates</span><span>Step Aerobics</span><span>Functional</span></div></section>
 
     {!supabaseConfigured&&<section className="public-empty"><strong>Сайтът очаква връзка с базата.</strong><p>Supabase настройките не са заредени.</p></section>}
     {loadError&&<section className="public-empty error"><strong>Тренировките не могат да се заредят.</strong><p>{loadError}</p></section>}
