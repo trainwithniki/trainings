@@ -1,0 +1,182 @@
+-- Fit Body Center / Trainings: authentication, roles and user invitations.
+-- Run this file in the NEW Supabase project's SQL Editor.
+
+create extension if not exists citext;
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email citext not null unique,
+  display_name text,
+  role text not null default 'editor' check (role in ('owner','admin','editor')),
+  active boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.user_invites (
+  id uuid primary key default gen_random_uuid(),
+  email citext not null unique,
+  display_name text,
+  role text not null default 'editor' check (role in ('admin','editor')),
+  invited_by uuid references public.profiles(id) on delete set null,
+  accepted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+alter table public.user_invites enable row level security;
+
+create or replace function public.current_admin_role()
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select role
+  from public.profiles
+  where id = auth.uid() and active = true
+$$;
+
+revoke all on function public.current_admin_role() from public;
+grant execute on function public.current_admin_role() to authenticated;
+
+drop policy if exists "profile_self_or_admin_read" on public.profiles;
+create policy "profile_self_or_admin_read"
+on public.profiles for select
+to authenticated
+using (id = auth.uid() or public.current_admin_role() in ('owner','admin'));
+
+drop policy if exists "admin_invites_read" on public.user_invites;
+create policy "admin_invites_read"
+on public.user_invites for select
+to authenticated
+using (public.current_admin_role() in ('owner','admin'));
+
+create or replace function public.handle_new_training_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  pending public.user_invites%rowtype;
+begin
+  select * into pending
+  from public.user_invites
+  where lower(email::text) = lower(new.email)
+  limit 1;
+
+  insert into public.profiles (id, email, display_name, role, active)
+  values (
+    new.id,
+    new.email,
+    coalesce(pending.display_name, new.raw_user_meta_data->>'display_name'),
+    coalesce(pending.role, 'editor'),
+    pending.id is not null
+  )
+  on conflict (id) do update set
+    email = excluded.email,
+    display_name = coalesce(excluded.display_name, public.profiles.display_name),
+    updated_at = now();
+
+  if pending.id is not null then
+    update public.user_invites set accepted_at = now() where id = pending.id;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_training_user_created on auth.users;
+create trigger on_training_user_created
+after insert or update of email on auth.users
+for each row execute function public.handle_new_training_user();
+
+create or replace function public.admin_invite_user(
+  invite_email text,
+  invite_name text default null,
+  invite_role text default 'editor'
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actor_role text := public.current_admin_role();
+  invite_id uuid;
+  existing_user uuid;
+begin
+  if actor_role not in ('owner','admin') then
+    raise exception 'Нямате право да добавяте потребители.';
+  end if;
+  if invite_role not in ('admin','editor') then
+    raise exception 'Невалидна роля.';
+  end if;
+  if actor_role = 'admin' and invite_role <> 'editor' then
+    raise exception 'Само главният администратор може да добавя администратори.';
+  end if;
+
+  insert into public.user_invites (email, display_name, role, invited_by, accepted_at)
+  values (lower(trim(invite_email))::citext, nullif(trim(invite_name),''), invite_role, auth.uid(), null)
+  on conflict (email) do update set
+    display_name = excluded.display_name,
+    role = excluded.role,
+    invited_by = auth.uid(),
+    accepted_at = null,
+    created_at = now()
+  returning id into invite_id;
+
+  select id into existing_user from auth.users where lower(email) = lower(trim(invite_email)) limit 1;
+  if existing_user is not null then
+    update public.profiles set
+      display_name = coalesce(nullif(trim(invite_name),''), display_name),
+      role = invite_role,
+      active = true,
+      updated_at = now()
+    where id = existing_user;
+    update public.user_invites set accepted_at = now() where id = invite_id;
+  end if;
+  return invite_id;
+end;
+$$;
+
+create or replace function public.admin_set_user_access(
+  target_user_id uuid,
+  next_role text,
+  next_active boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actor_role text := public.current_admin_role();
+  target_role text;
+begin
+  if target_user_id = auth.uid() then
+    raise exception 'Не можете да променяте собствения си достъп.';
+  end if;
+  select role into target_role from public.profiles where id = target_user_id;
+  if actor_role = 'owner' then
+    if next_role not in ('owner','admin','editor') then raise exception 'Невалидна роля.'; end if;
+  elsif actor_role = 'admin' then
+    if target_role <> 'editor' or next_role <> 'editor' then
+      raise exception 'Администраторът може да управлява само редактори.';
+    end if;
+  else
+    raise exception 'Нямате право да променяте потребители.';
+  end if;
+  update public.profiles set role = next_role, active = next_active, updated_at = now() where id = target_user_id;
+end;
+$$;
+
+revoke all on function public.admin_invite_user(text,text,text) from public;
+revoke all on function public.admin_set_user_access(uuid,text,boolean) from public;
+grant execute on function public.admin_invite_user(text,text,text) to authenticated;
+grant execute on function public.admin_set_user_access(uuid,text,boolean) to authenticated;
+
+-- Initial owner setup (run once after creating the first Auth user):
+-- update public.profiles set role = 'owner', active = true
+-- where lower(email::text) = lower('YOUR_ADMIN_EMAIL');
