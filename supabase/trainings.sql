@@ -214,6 +214,50 @@ revoke all on function public.cancel_training_registration(uuid,uuid) from publi
 grant execute on function public.book_training(uuid,text,text,text,text) to anon, authenticated;
 grant execute on function public.cancel_training_registration(uuid,uuid) to anon, authenticated;
 
+-- Editable quick-training templates, visible only to authorised administrators.
+create table if not exists public.training_templates (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (char_length(trim(title)) between 2 and 120),
+  weekday integer not null check (weekday between 1 and 7),
+  start_time time not null,
+  location text not null default 'Fit Body Center',
+  duration integer not null default 60 check (duration between 10 and 300),
+  capacity integer not null default 20 check (capacity between 1 and 500),
+  booking_open_hours integer not null default 48 check (booking_open_hours between 0 and 720),
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.training_templates enable row level security;
+drop policy if exists "training templates admin access" on public.training_templates;
+create policy "training templates admin access"
+on public.training_templates for all
+to authenticated
+using (public.is_trainings_admin())
+with check (public.is_trainings_admin());
+grant select, insert, update, delete on table public.training_templates to authenticated;
+
+create or replace function public.touch_training_template()
+returns trigger language plpgsql set search_path = '' as $$
+begin new.updated_at := now(); return new; end;
+$$;
+drop trigger if exists touch_training_template on public.training_templates;
+create trigger touch_training_template before update on public.training_templates
+for each row execute function public.touch_training_template();
+
+insert into public.training_templates (title,weekday,start_time,sort_order)
+select item.title,item.weekday,item.start_time::time,item.sort_order
+from (values
+  ('Пилатес',1,'07:45',0),('Body Training',1,'08:45',1),('Пилатес',1,'18:30',2),('Strong Body',1,'19:30',3),
+  ('Body Balance',2,'08:00',4),('Зумба',2,'18:30',5),
+  ('Body Training',3,'08:00',6),('Детска кондиционна',3,'17:30',7),('Пилатес',3,'18:30',8),('Tae Bo',3,'19:30',9),
+  ('Body Balance',4,'08:00',10),('Зумба',4,'18:30',11),
+  ('Пилатес',5,'07:45',12),('Body Training',5,'08:45',13),('Tae Bo',5,'19:00',14),
+  ('Strong Body',6,'09:30',15),('Детска кондиционна',6,'10:30',16),('Кондиционен тим',7,'16:45',17)
+) as item(title,weekday,start_time,sort_order)
+where not exists (select 1 from public.training_templates);
+
 do $$
 begin
   if not exists (
