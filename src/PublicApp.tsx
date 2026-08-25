@@ -83,7 +83,7 @@ export default function PublicApp(){
   }
 
   return <main className="site-shell fbc-public live-public">
-    <section className="hero-card"><div className="hero-glow hero-glow-one"/><div className="hero-glow hero-glow-two"/><div className="brand-lockup"><span className="brand-fit">FIT</span><span className="brand-body">BODY CENTER</span></div><div className="hero-copy"><span className="eyebrow">{siteContent.hero_eyebrow}</span><h1>{siteContent.hero_title.split('\n').map((line,index)=><span key={`${line}-${index}`}>{line}</span>)}</h1><p>{siteContent.hero_description}</p></div><div className="hero-tags">{siteContent.hero_tags.split(',').map(tag=><span key={tag.trim()}>{tag.trim()}</span>)}</div></section>
+    <section className="hero-card hero-artwork"><img src={`${baseUrl}fit-body-center-hero.webp`} alt="Fit Body Center — постигни своите цели със сила, мотивация и енергия" fetchPriority="high"/><div className="hero-accessible-copy"><span>{siteContent.hero_eyebrow}</span><h1>{siteContent.hero_title}</h1><p>{siteContent.hero_description}</p><span>{siteContent.hero_tags}</span></div></section>
 
     {!supabaseConfigured&&<section className="public-empty"><strong>Сайтът очаква връзка с базата.</strong><p>Supabase настройките не са заредени.</p></section>}
     {loadError&&<section className="public-empty error"><strong>Тренировките не могат да се заредят.</strong><p>{loadError}</p></section>}
