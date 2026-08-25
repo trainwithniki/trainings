@@ -43,17 +43,37 @@ $$;
 revoke all on function public.current_admin_role() from public;
 grant execute on function public.current_admin_role() to authenticated;
 
+create or replace function public.is_trainings_owner()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and active = true
+      and role = 'owner'
+      and lower(email::text) = 'svetlichaa@gmail.com'
+  )
+$$;
+
+revoke all on function public.is_trainings_owner() from public;
+grant execute on function public.is_trainings_owner() to authenticated;
+
 drop policy if exists "profile_self_or_admin_read" on public.profiles;
 create policy "profile_self_or_admin_read"
 on public.profiles for select
 to authenticated
-using (id = auth.uid() or public.current_admin_role() in ('owner','admin'));
+using (id = auth.uid() or public.is_trainings_owner());
 
 drop policy if exists "admin_invites_read" on public.user_invites;
 create policy "admin_invites_read"
 on public.user_invites for select
 to authenticated
-using (public.current_admin_role() in ('owner','admin'));
+using (public.is_trainings_owner());
 
 create or replace function public.handle_new_training_user()
 returns trigger
@@ -105,18 +125,14 @@ security definer
 set search_path = ''
 as $$
 declare
-  actor_role text := public.current_admin_role();
   invite_id uuid;
   existing_user uuid;
 begin
-  if actor_role not in ('owner','admin') then
+  if not public.is_trainings_owner() then
     raise exception 'Нямате право да добавяте потребители.';
   end if;
   if invite_role not in ('admin','editor') then
     raise exception 'Невалидна роля.';
-  end if;
-  if actor_role = 'admin' and invite_role <> 'editor' then
-    raise exception 'Само главният администратор може да добавя администратори.';
   end if;
 
   insert into public.user_invites (email, display_name, role, invited_by, accepted_at)
@@ -153,23 +169,14 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  actor_role text := public.current_admin_role();
-  target_role text;
 begin
+  if not public.is_trainings_owner() then
+    raise exception 'Нямате право да променяте потребители.';
+  end if;
   if target_user_id = auth.uid() then
     raise exception 'Не можете да променяте собствения си достъп.';
   end if;
-  select role into target_role from public.profiles where id = target_user_id;
-  if actor_role = 'owner' then
-    if next_role not in ('owner','admin','editor') then raise exception 'Невалидна роля.'; end if;
-  elsif actor_role = 'admin' then
-    if target_role <> 'editor' or next_role <> 'editor' then
-      raise exception 'Администраторът може да управлява само редактори.';
-    end if;
-  else
-    raise exception 'Нямате право да променяте потребители.';
-  end if;
+  if next_role not in ('admin','editor') then raise exception 'Невалидна роля.'; end if;
   update public.profiles set role = next_role, active = next_active, updated_at = now() where id = target_user_id;
 end;
 $$;
@@ -179,5 +186,5 @@ revoke all on function public.admin_set_user_access(uuid,text,boolean) from publ
 grant execute on function public.admin_invite_user(text,text,text) to authenticated;
 grant execute on function public.admin_set_user_access(uuid,text,boolean) to authenticated;
 
--- Bootstrap the first owner by inserting one owner invitation directly in the
--- Supabase SQL Editor. Do not commit the real email address to this file.
+-- The single owner account for this project is restricted by
+-- public.is_trainings_owner(). Other roles can read only their own profile.

@@ -2,13 +2,14 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
-import { Profile, supabase, supabaseConfigured } from './supabase';
+import { Profile, ProfileRole, supabase, supabaseConfigured, UserInvite } from './supabase';
 import {
   dayName, defaultSiteContent, errorMessage, isBookingOpen, isCompleted, loadAdminData, loadSiteContent, months, shortDate, shortTime,
   SiteContent, TrainingRegistration, TrainingSession, TrainingStatus,
 } from './training-data';
 
 const baseUrl = import.meta.env.BASE_URL;
+const ownerEmail='svetlichaa@gmail.com';
 type QuickTemplate={id?:string;title:string;weekday:number;time:string;location:string;duration:number;capacity:number;booking_open_hours:number;sort_order:number};
 function registrationMoment(value:string){
   const date=new Date(value);
@@ -53,10 +54,10 @@ export default function AdminApp() {
   if(loading)return <AdminLoading/>;
   if(!user)return <LoginPanel/>;
   if(!profile||!profile.active||!['owner','admin','editor'].includes(profile.role))return <AccessDenied email={user.email??''}/>;
-  return <AdminDashboard/>;
+  return <AdminDashboard profile={profile}/>;
 }
 
-function AdminDashboard(){
+function AdminDashboard({profile}:{profile:Profile}){
   const [sessions,setSessions]=useState<TrainingSession[]>([]);
   const [registrations,setRegistrations]=useState<TrainingRegistration[]>([]);
   const [loading,setLoading]=useState(true);
@@ -65,7 +66,9 @@ function AdminDashboard(){
   const [editor,setEditor]=useState<TrainingSession|null|undefined>(undefined);
   const [registrationEditor,setRegistrationEditor]=useState<TrainingRegistration|null>(null);
   const [heroEditor,setHeroEditor]=useState(false);
+  const [section,setSection]=useState<'trainings'|'profiles'>('trainings');
   const [clock,setClock]=useState(Date.now());
+  const canManageProfiles=profile.role==='owner'&&profile.email.toLocaleLowerCase('en')===ownerEmail;
 
   const refresh=useCallback(async()=>{
     try{const data=await loadAdminData();setSessions(data.sessions);setRegistrations(data.registrations);setError('');}
@@ -110,13 +113,13 @@ function AdminDashboard(){
 
   return <main className="admin-shell live-admin matched-admin">
     <header className="matched-admin-head"><div><span>FIT BODY CENTER</span><h1>Админ панел</h1></div><div className="admin-header-actions"><a className="site-button" href={`${baseUrl}trainings.html`}>← Към сайта</a><button className="logout-button" onClick={signOut}>Изход</button></div></header>
-    <nav className="matched-admin-tabs" aria-label="Раздели"><button className="active" type="button">Тренировки</button></nav>
-    <div className="matched-new-training"><button className="admin-hero-settings" onClick={()=>setHeroEditor(true)}>✎ Текст на началната страница</button><button className="admin-add-primary" onClick={()=>setEditor(null)}>+ Нова тренировка</button></div>
+    <nav className={`matched-admin-tabs ${canManageProfiles?'owner-tabs':''}`} aria-label="Раздели"><button className={section==='trainings'?'active':''} type="button" onClick={()=>setSection('trainings')}>Тренировки</button>{canManageProfiles&&<button className={section==='profiles'?'active':''} type="button" onClick={()=>setSection('profiles')}>Профили</button>}</nav>
+    {section==='trainings'&&<div className="matched-new-training"><button className="admin-hero-settings" onClick={()=>setHeroEditor(true)}>✎ Текст на началната страница</button><button className="admin-add-primary" onClick={()=>setEditor(null)}>+ Нова тренировка</button></div>}
     {error&&<div className="admin-alert error">{error}</div>}
     {notice&&<button className="admin-alert success" onClick={()=>setNotice('')}>{notice}<span>×</span></button>}
     {loading&&<div className="admin-data-loading">Зареждане…</div>}
 
-    <section className="admin-live-section">
+    {section==='trainings'&&<><section className="admin-live-section">
       <div className="admin-section-heading"><div><span>АКТИВНИ</span><h2>Отворени за записване</h2></div><strong>{active.length}</strong></div>
       {!loading&&active.length===0&&<EmptyAdmin title="Няма активна тренировка" text="Създайте тренировка и натиснете „Старт“, когато искате да отворите записването."/>}
       {active.map(session=><ActiveTraining key={session.id} session={session} registrations={registrationsFor(session.id)} onEdit={()=>setEditor(session)} onStop={()=>changeStatus(session,'closed')} onEditRegistration={setRegistrationEditor} onDeleteRegistration={deleteRegistration}/>)}
@@ -132,12 +135,59 @@ function AdminDashboard(){
       <div className="admin-section-heading"><div><span>АРХИВ</span><h2>Проведени тренировки</h2></div><strong>{completed.length}</strong></div>
       {!loading&&completed.length===0&&<EmptyAdmin title="Все още няма проведени тренировки" text="Миналите тренировки ще се подреждат тук от най-новата към най-старата."/>}
       <div className="completed-accordion">{completed.map(session=><CompletedTraining key={session.id} session={session} registrations={registrationsFor(session.id)} onEdit={()=>setEditor(session)} onEditRegistration={setRegistrationEditor} onDelete={()=>deleteSession(session)}/>)}</div>
-    </section>
+    </section></>}
+
+    {section==='profiles'&&canManageProfiles&&<ProfileManagement ownerId={profile.id}/>}
 
     {editor!==undefined&&<SessionEditor session={editor} onClose={()=>setEditor(undefined)} onSaved={async()=>{setEditor(undefined);setNotice(editor?'Промените са запазени.':'Тренировката е създадена.');await refresh();}}/>}
     {registrationEditor&&<RegistrationEditor registration={registrationEditor} onClose={()=>setRegistrationEditor(null)} onSaved={async()=>{setRegistrationEditor(null);setNotice('Данните на записания човек са променени.');await refresh();}}/>}
     {heroEditor&&<HeroContentEditor onClose={()=>setHeroEditor(false)} onSaved={()=>{setHeroEditor(false);setNotice('Текстът на началната страница е запазен.');}}/>}
   </main>;
+}
+
+function ProfileManagement({ownerId}:{ownerId:string}){
+  const [profiles,setProfiles]=useState<Profile[]>([]);
+  const [invites,setInvites]=useState<UserInvite[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [busyId,setBusyId]=useState('');
+  const [error,setError]=useState('');
+  const [notice,setNotice]=useState('');
+
+  const refresh=useCallback(async()=>{
+    if(!supabase)return;
+    setLoading(true);
+    const [profilesResult,invitesResult]=await Promise.all([
+      supabase.from('profiles').select('*').order('created_at'),
+      supabase.from('user_invites').select('*').is('accepted_at',null).order('created_at',{ascending:false}),
+    ]);
+    const requestError=profilesResult.error??invitesResult.error;
+    if(requestError)setError(errorMessage(requestError));
+    else{setProfiles((profilesResult.data??[]) as Profile[]);setInvites((invitesResult.data??[]) as UserInvite[]);setError('');}
+    setLoading(false);
+  },[]);
+
+  useEffect(()=>{void refresh();},[refresh]);
+
+  async function inviteUser(event:FormEvent<HTMLFormElement>){
+    event.preventDefault();if(!supabase)return;
+    const formElement=event.currentTarget,form=new FormData(formElement),email=String(form.get('email')??'').trim(),name=String(form.get('name')??'').trim(),role=String(form.get('role')??'editor') as ProfileRole;
+    setBusyId('invite');setError('');setNotice('');
+    const {error:requestError}=await supabase.rpc('admin_invite_user',{invite_email:email,invite_name:name||null,invite_role:role});
+    setBusyId('');
+    if(requestError){setError(errorMessage(requestError));return;}
+    formElement.reset();setNotice(`Поканата за ${email} е създадена.`);await refresh();
+  }
+
+  async function updateAccess(item:Profile,role:ProfileRole,active:boolean){
+    if(!supabase||item.id===ownerId)return;
+    setBusyId(item.id);setError('');setNotice('');
+    const {error:requestError}=await supabase.rpc('admin_set_user_access',{target_user_id:item.id,next_role:role,next_active:active});
+    setBusyId('');
+    if(requestError){setError(errorMessage(requestError));return;}
+    setNotice(`Достъпът на ${item.email} е обновен.`);await refresh();
+  }
+
+  return <section className="users-panel owner-users-panel"><div className="admin-section-heading"><div><span>САМО ЗА OWNER</span><h2>Управление на профили</h2></div><strong>{profiles.length}</strong></div><p>Само Вашият owner профил вижда този раздел. Новият потребител избира „Имаш покана? Активирай профил“ на екрана за вход.</p><form className="invite-form" onSubmit={inviteUser}><label>ИМЕ<input name="name" placeholder="Име и фамилия"/></label><label>ИМЕЙЛ<input name="email" type="email" required placeholder="name@example.com"/></label><label>РОЛЯ<select name="role" defaultValue="editor"><option value="editor">Редактор</option><option value="admin">Администратор</option></select></label><button disabled={busyId==='invite'}>{busyId==='invite'?'Създаване…':'Създай покана'}</button></form>{error&&<div className="admin-alert error">{error}</div>}{notice&&<button className="admin-alert success" onClick={()=>setNotice('')}>{notice}<span>×</span></button>}{loading?<div className="admin-data-loading">Зареждане на профилите…</div>:<><div className="users-heading"><strong>Съществуващи профили</strong><span>{profiles.length}</span></div><div className="users-list owner-profile-list">{profiles.map(item=><div key={item.id}><span><strong>{item.display_name||item.email}</strong><small>{item.email}</small></span><select value={item.role} disabled={item.id===ownerId||busyId===item.id} onChange={event=>void updateAccess(item,event.target.value as ProfileRole,item.active)}><option value="owner" disabled>Owner</option><option value="admin">Администратор</option><option value="editor">Редактор</option></select>{item.id===ownerId?<b className="owner-self-badge">ВАШИЯТ ПРОФИЛ</b>:<button className={item.active?'deactivate':'activate'} disabled={busyId===item.id} onClick={()=>void updateAccess(item,item.role,!item.active)}>{busyId===item.id?'…':item.active?'Спри':'Активирай'}</button>}</div>)}</div>{invites.length>0&&<><div className="users-heading"><strong>Чакащи покани</strong><span>{invites.length}</span></div><div className="invite-list">{invites.map(invite=><div key={invite.id}><span><strong>{invite.display_name||invite.email}</strong><small>{invite.email}</small></span><b>{invite.role==='admin'?'АДМИНИСТРАТОР':'РЕДАКТОР'}</b></div>)}</div></>}</>}</section>;
 }
 
 function ActiveTraining({session,registrations,onEdit,onStop,onEditRegistration,onDeleteRegistration}:{session:TrainingSession;registrations:TrainingRegistration[];onEdit:()=>void;onStop:()=>void;onEditRegistration:(item:TrainingRegistration)=>void;onDeleteRegistration:(item:TrainingRegistration)=>void}){
