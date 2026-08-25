@@ -544,3 +544,33 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
   .tariff-badge.card8,.tariff-badge.card12{font-size:10px}
   .tariff-badge.multisport{font-size:5.5px;letter-spacing:.025em}
 }
+
+/* Booking summary, five-second cancellation window and no-card stamp. */
+.tariff-badge.no-card{border:1.5px solid #697673;background:transparent;color:#4f5c59;font-size:5.5px;letter-spacing:.025em;box-shadow:inset 0 0 0 1px #c8cfcc}
+.booking-session-summary{padding:14px;text-align:center}
+.booking-session-summary>strong{font-size:18px;line-height:1.15}
+.booking-session-summary>div{display:flex;align-items:baseline;justify-content:center;gap:14px;margin-top:10px}
+.booking-session-summary>div b{font-size:23px;line-height:1;letter-spacing:-.035em}
+.booking-session-summary>div em{color:#e52d49;font-size:32px;line-height:1;font-style:normal;font-weight:1000;letter-spacing:-.045em;text-shadow:0 0 12px #ff45622c}
+.booking-session-summary>span{margin-top:8px!important;font-size:9px!important}
+.pending-booking-backdrop{z-index:90;align-items:center}
+.booking-confirmation{width:min(100%,460px);padding:24px 20px 20px;border:1px solid #f0c425;border-radius:24px;background:#fff;text-align:center;box-shadow:0 24px 70px #0005,0 0 28px #ffd12935}
+.booking-confirmation>span{color:#168052;font-size:8px;font-weight:950;letter-spacing:.16em}
+.booking-confirmation h2{margin:7px 0 0;font-size:18px}
+.booking-confirmation>strong{display:block;margin-top:8px;font-size:27px;line-height:1.08}
+.confirmation-session{margin-top:14px;padding:13px;border-radius:15px;background:#f7f8f8}
+.confirmation-session b,.confirmation-session em,.confirmation-session small{display:block}
+.confirmation-session b{font-size:22px}
+.confirmation-session em{margin-top:4px;color:#e42e49;font-size:34px;line-height:1;font-style:normal;font-weight:1000}
+.confirmation-session small{margin-top:7px;color:#65716b;font-size:9px;font-weight:850}
+.booking-confirmation p{margin:15px 0 6px;color:#66716b;font-size:10px;font-weight:850}
+.confirmation-countdown{display:grid;width:58px;height:58px;margin:0 auto;place-items:center;border:2px solid #ef3552;border-radius:50%;color:#d91f3f;font-size:30px;font-weight:1000;box-shadow:0 0 16px #ef355238}
+.booking-confirmation>button{width:100%;min-height:45px;margin-top:14px;border:1px solid #df536a;border-radius:12px;background:#fff2f4;color:#af2139;font-size:11px;font-weight:950}
+.booking-confirmation>button:disabled{opacity:.55}
+@media(max-width:430px){
+  .booking-session-summary>strong{font-size:17px}
+  .booking-session-summary>div b{font-size:20px}
+  .booking-session-summary>div em{font-size:29px}
+  .booking-confirmation{padding:21px 16px 17px;border-radius:21px}
+  .booking-confirmation>strong{font-size:24px}
+}

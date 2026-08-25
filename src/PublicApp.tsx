@@ -8,6 +8,7 @@ import {
 } from './training-data';
 
 type SessionState='open'|'upcoming'|'completed';
+type PendingBooking={sessionId:string;sessionTitle:string;location:string;date:string;startTime:string;friend:boolean;name:string;phone:string;tariff:Tariff;bookedBy:string|null;expiresAt:number};
 const bookingKey='fit-body-center-live-bookings';
 const baseUrl=import.meta.env.BASE_URL;
 
@@ -23,6 +24,8 @@ export default function PublicApp(){
   const [loading,setLoading]=useState(true);
   const [loadError,setLoadError]=useState('');
   const [modal,setModal]=useState<'booking'|'friend'|null>(null);
+  const [pendingBooking,setPendingBooking]=useState<PendingBooking|null>(null);
+  const [bookingBusy,setBookingBusy]=useState(false);
   const [receipts,setReceipts]=useState<Record<string,BookingReceipt>>({});
   const [notice,setNotice]=useState('');
   const [calendarView,setCalendarView]=useState(()=>{const now=new Date();return new Date(now.getFullYear(),now.getMonth(),1);});
@@ -48,7 +51,8 @@ export default function PublicApp(){
     return()=>{client.removeChannel(channel);};
   },[refresh]);
   useEffect(()=>{const timer=window.setInterval(()=>setClock(Date.now()),1000);return()=>window.clearInterval(timer);},[]);
-  useEffect(()=>{document.body.classList.toggle('modal-open',Boolean(modal));return()=>document.body.classList.remove('modal-open');},[modal]);
+  useEffect(()=>{document.body.classList.toggle('modal-open',Boolean(modal||pendingBooking));return()=>document.body.classList.remove('modal-open');},[modal,pendingBooking]);
+  useEffect(()=>{if(!pendingBooking)return;const timer=window.setTimeout(()=>void completeBooking(pendingBooking),Math.max(0,pendingBooking.expiresAt-Date.now()));return()=>window.clearTimeout(timer);},[pendingBooking?.expiresAt]);
 
   const selected=sessions.find(item=>item.id===selectedId)??null;
   const ownReceipt=selected?receipts[selected.id]:undefined;
@@ -64,16 +68,19 @@ export default function PublicApp(){
   },[calendarView,sessions]);
 
   function storeReceipts(next:Record<string,BookingReceipt>){setReceipts(next);window.localStorage.setItem(bookingKey,JSON.stringify(next));}
-  async function submitBooking(event:FormEvent<HTMLFormElement>,friend=false){
+  function submitBooking(event:FormEvent<HTMLFormElement>,friend=false){
     event.preventDefault();if(!supabase||!selected)return;
     const form=new FormData(event.currentTarget);const name=String(form.get('name')||'').trim();const phone=String(form.get('phone')||'').trim();const tariff=String(form.get('tariff')||'none') as Tariff;
-    const submitButton=event.currentTarget.querySelector('button[type="submit"]') as HTMLButtonElement|null;if(submitButton)submitButton.disabled=true;
-    const {data,error}=await supabase.rpc('book_training',{p_session_id:selected.id,p_name:name,p_phone:phone,p_tariff:tariff,p_booked_by:friend&&ownReceipt?ownReceipt.name:null});
-    if(submitButton)submitButton.disabled=false;
+    const startedAt=Date.now();setClock(startedAt);setPendingBooking({sessionId:selected.id,sessionTitle:selected.title,location:selected.location,date:selected.date,startTime:selected.start_time,friend,name,phone,tariff,bookedBy:friend&&ownReceipt?ownReceipt.name:null,expiresAt:startedAt+5000});setModal(null);
+  }
+  async function completeBooking(pending:PendingBooking){
+    if(!supabase)return;setBookingBusy(true);
+    const {data,error}=await supabase.rpc('book_training',{p_session_id:pending.sessionId,p_name:pending.name,p_phone:pending.phone,p_tariff:pending.tariff,p_booked_by:pending.bookedBy});
+    setBookingBusy(false);setPendingBooking(null);
     if(error){setNotice(errorMessage(error));return;}
     const row=(data as {registration_id:string;cancellation_token:string}[]|null)?.[0];
-    if(!friend&&row)storeReceipts({...receipts,[selected.id]:{sessionId:selected.id,registrationId:row.registration_id,cancellationToken:row.cancellation_token,name}});
-    setNotice(friend?`${name} е добавен/а към тренировката.`:'Мястото е запазено успешно.');setModal(null);await refresh();
+    if(!pending.friend&&row)storeReceipts({...receipts,[pending.sessionId]:{sessionId:pending.sessionId,registrationId:row.registration_id,cancellationToken:row.cancellation_token,name:pending.name}});
+    setNotice(pending.friend?`${pending.name} е добавен/а към тренировката.`:'Мястото е запазено успешно.');await refresh();
   }
   async function unsubscribe(){
     if(!supabase||!selected||!ownReceipt)return;
@@ -104,6 +111,7 @@ export default function PublicApp(){
     {notice&&<button className="toast" onClick={()=>setNotice('')}>{notice}<span>×</span></button>}
     {selected&&selected.status!=='closed'&&stateOf(selected,clock)!=='completed'&&<div className="sticky-booking exact-sticky"><button className={stateOf(selected,clock)==='upcoming'?'waiting':''} disabled={stateOf(selected,clock)==='upcoming'} onClick={()=>ownReceipt?setModal('friend'):setModal('booking')}><span>ТРЕНИРОВКА НА {selected.date.slice(8)}.{selected.date.slice(5,7)} · {shortTime(selected.start_time)}</span><strong>{stateOf(selected,clock)==='upcoming'?`ЗАПИСВАНЕ ОТ ${formatDateTime(bookingOpenAt(selected))}`:ownReceipt?'ЗАПИШИ ПРИЯТЕЛ':`ЗАПИШИ СЕ · ${Math.max(0,selected.capacity-selected.registration_count)} СВОБОДНИ МЕСТА`}</strong></button></div>}
     {modal&&selected&&<BookingModal friend={modal==='friend'} session={selected} onClose={()=>setModal(null)} onSubmit={submitBooking}/>}
+    {pendingBooking&&<BookingConfirmation pending={pendingBooking} now={clock} busy={bookingBusy} onCancel={()=>{if(!bookingBusy){setPendingBooking(null);setNotice('Записването беше отказано.');}}}/>}
   </main>;
 }
 
@@ -136,7 +144,9 @@ function Stopwatch({minutes}:{minutes:number}){return <div className="exact-stop
 function BookingCountdown({session,now,compact=false}:{session:TrainingSession;now:number;compact?:boolean}){const remaining=Math.max(0,parseLocal(session.date,session.start_time).getTime()-now),seconds=Math.floor(remaining/1000),values=[Math.floor(seconds/86400),Math.floor(seconds%86400/3600),Math.floor(seconds%3600/60),seconds%60],labels=['дни','часа','минути','секунди'];return <div className={`exact-countdown ${compact?'compact':''}`}><div><strong>⏳ ЗАПИСВАНЕТО СПИРА СЛЕД</strong><span>Краен час: {session.date.slice(8)}.{session.date.slice(5,7)} · {shortTime(session.start_time)}</span></div><section>{values.map((value,index)=><div key={labels[index]}><strong>{String(value).padStart(2,'0')}</strong><span>{labels[index]}</span></div>)}</section></div>;}
 
 function BookingModal({friend,session,onClose,onSubmit}:{friend:boolean;session:TrainingSession;onClose:()=>void;onSubmit:(event:FormEvent<HTMLFormElement>,friend?:boolean)=>void}){
-  return <div className="booking-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><form className="booking-modal live-booking-modal" onSubmit={event=>onSubmit(event,friend)}><div className="modal-handle"/><div className="modal-title"><div><span>{friend?'ДОБАВЯНЕ':'ЗАПИСВАНЕ'}</span><h2>{friend?'Запиши приятел':'Запази своето място'}</h2></div><button type="button" onClick={onClose}>×</button></div><div className="modal-session"><strong>{session.title}</strong><span>{prettyDate(session.date)} · {dayName(session.date)} · {shortTime(session.start_time)} ч.</span></div><label>ИМЕ И ФАМИЛИЯ<input name="name" autoFocus required minLength={2} placeholder={friend?'Име на приятеля':'Вашето име'}/></label><label>ТЕЛЕФОН ЗА КОНТАКТ<input name="phone" type="tel" required inputMode="tel" placeholder="08xx xxx xxx"/></label><fieldset className="tariff-choices"><legend>НАЧИН НА ПОСЕЩЕНИЕ</legend><label><input type="radio" name="tariff" value="card8"/><span><i className="mini-visit-card">8</i><strong>Карта 8 посещения</strong></span></label><label><input type="radio" name="tariff" value="card12"/><span><i className="mini-visit-card">12</i><strong>Карта 12 посещения</strong></span></label><label><input type="radio" name="tariff" value="none" defaultChecked/><span><i>✓</i><strong>Без карта</strong></span></label><label><input type="radio" name="tariff" value="multisport"/><span><img src={`${baseUrl}multisport-card.webp`} alt="MultiSport"/><strong>Имам карта MultiSport</strong></span></label></fieldset><button className="modal-submit" type="submit">{friend?'Добави приятел':'Потвърди записването'}</button></form></div>;
+  return <div className="booking-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><form className="booking-modal live-booking-modal" onSubmit={event=>onSubmit(event,friend)}><div className="modal-handle"/><div className="modal-title"><div><span>{friend?'ДОБАВЯНЕ':'ЗАПИСВАНЕ'}</span><h2>Запази своето място</h2></div><button type="button" onClick={onClose}>×</button></div><div className="modal-session booking-session-summary"><strong>{session.title}</strong><div><b>{session.date.slice(8)}.{session.date.slice(5,7)}.{session.date.slice(0,4)}</b><em>{shortTime(session.start_time)}</em></div><span>{dayName(session.date)} · {session.location}</span></div><label>ИМЕ И ФАМИЛИЯ<input name="name" required minLength={2} placeholder={friend?'Име на приятеля':'Вашето име'}/></label><label>ТЕЛЕФОН ЗА КОНТАКТ<input name="phone" type="tel" required inputMode="tel" placeholder="08xx xxx xxx"/></label><fieldset className="tariff-choices"><legend>НАЧИН НА ПОСЕЩЕНИЕ</legend><label><input type="radio" name="tariff" value="card8"/><span><i className="mini-visit-card">8</i><strong>Карта 8 посещения</strong></span></label><label><input type="radio" name="tariff" value="card12"/><span><i className="mini-visit-card">12</i><strong>Карта 12 посещения</strong></span></label><label><input type="radio" name="tariff" value="none" defaultChecked/><span><i>✓</i><strong>Без карта</strong></span></label><label><input type="radio" name="tariff" value="multisport"/><span><img src={`${baseUrl}multisport-card.webp`} alt="MultiSport"/><strong>Имам карта MultiSport</strong></span></label></fieldset><button className="modal-submit" type="submit">{friend?'Добави приятел':'Потвърди записването'}</button></form></div>;
 }
+
+function BookingConfirmation({pending,now,busy,onCancel}:{pending:PendingBooking;now:number;busy:boolean;onCancel:()=>void}){const seconds=Math.max(0,Math.ceil((pending.expiresAt-now)/1000));return <div className="booking-backdrop pending-booking-backdrop"><section className="booking-confirmation" role="dialog" aria-modal="true" aria-labelledby="booking-confirmation-title"><span>ПОТВЪРЖДЕНИЕ</span><h2 id="booking-confirmation-title">Записвате се за</h2><strong>{pending.sessionTitle}</strong><div className="confirmation-session"><b>{pending.date.slice(8)}.{pending.date.slice(5,7)}.{pending.date.slice(0,4)}</b><em>{shortTime(pending.startTime)}</em><small>{dayName(pending.date)} · {pending.location}</small></div><p>{busy?'Потвърждаваме записването…':'Записването ще бъде потвърдено след'}</p><div className="confirmation-countdown">{busy?'…':seconds}</div><button type="button" onClick={onCancel} disabled={busy}>{busy?'Моля, изчакайте':'Откажи записването'}</button></section></div>;}
 
 function sortSessions(a:TrainingSession,b:TrainingSession){return `${a.date}T${a.start_time}`.localeCompare(`${b.date}T${b.start_time}`);}
