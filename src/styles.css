@@ -424,3 +424,48 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
   .training-icon.compact{width:96px;height:112px;border-radius:16px}
   .exact-session-top.has-list-icon{grid-template-columns:96px minmax(0,1fr) 96px}
 }
+
+/* Clear public training hierarchy and keep tariff stamps attached to attendee names. */
+.admin-hero-settings{font-size:13px}
+.matched-new-training .admin-add-primary{font-size:15px}
+.exact-featured-name,.exact-session-info{align-items:center;text-align:center}
+.exact-featured-name h2{font-size:clamp(28px,7vw,39px)}
+.exact-session-info h3{margin:0;font-size:21px}
+.training-venue-brand{
+  display:inline-flex;
+  align-items:flex-end;
+  justify-content:center;
+  gap:5px;
+  margin-top:7px;
+  color:#15191d;
+  line-height:1;
+  white-space:nowrap;
+}
+.training-venue-brand b{font-size:17px;font-weight:1000;letter-spacing:-.08em;text-shadow:0 0 6px #fff,0 0 12px #ffd21f73}
+.training-venue-brand i{padding-bottom:1px;color:#c99b00;font-size:7px;font-style:normal;font-weight:950;letter-spacing:.2em}
+.exact-session-info .training-venue-brand{margin-top:6px}
+.exact-session-info .exact-status{width:auto;margin:8px 0 0;text-align:center}
+.exact-status{justify-content:center;text-align:center}
+.status-opening-detail{display:block;margin-top:6px;color:#8d5260;text-align:center;font-size:8px;font-weight:850;line-height:1.35}
+.status-opening-detail b{display:block;margin-top:2px;font-size:8px}
+.status-opening-detail.compact{font-size:7px}
+.attendee-name-and-tariff{display:flex;min-width:0;align-items:center;gap:6px}
+.attendee-name-and-tariff .attendee-identity{min-width:0}
+.attendee-name-and-tariff .tariff-badge,.attendee-name-and-tariff .tariff-spacer{flex:0 0 auto}
+.live-attendee-row{grid-template-columns:24px minmax(130px,1fr) 90px 62px 58px}
+@media(min-width:760px){
+  .exact-featured-name h2{font-size:37px}
+  .exact-session-info h3{font-size:19px}
+}
+@media(max-width:560px){
+  .admin-hero-settings{font-size:12px}
+  .matched-new-training .admin-add-primary{font-size:13px}
+  .live-attendee-row{grid-template-columns:19px minmax(112px,1fr) 76px 52px 52px}
+  .attendee-name-and-tariff{gap:4px}
+}
+@media(max-width:430px){
+  .has-training-icon .exact-featured-name h2{font-size:24px}
+  .exact-session-info h3{font-size:21px}
+  .training-venue-brand b{font-size:14px}
+  .training-venue-brand i{font-size:6px;letter-spacing:.13em}
+}
