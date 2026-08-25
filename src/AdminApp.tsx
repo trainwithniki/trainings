@@ -10,6 +10,12 @@ import {
 
 const baseUrl = import.meta.env.BASE_URL;
 type QuickTemplate={id?:string;title:string;weekday:number;time:string;location:string;duration:number;capacity:number;booking_open_hours:number;sort_order:number};
+function registrationMoment(value:string){
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return{shortDate:'--.--',date:'Няма информация',time:'--:--'};
+  const parts=Object.fromEntries(new Intl.DateTimeFormat('bg-BG',{timeZone:'Europe/Sofia',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(date).map(part=>[part.type,part.value]));
+  return{shortDate:`${parts.day}.${parts.month}`,date:`${parts.day}.${parts.month}.${parts.year}`,time:`${parts.hour}:${parts.minute}`};
+}
 const templateDefaults={location:'Fit Body Center',duration:60,capacity:20,booking_open_hours:48};
 const quickTemplates:QuickTemplate[]=[
   {title:'Пилатес',weekday:1,time:'07:45'},{title:'Body Training',weekday:1,time:'08:45'},{title:'Пилатес',weekday:1,time:'18:30'},{title:'Strong Body',weekday:1,time:'19:30'},
@@ -147,7 +153,8 @@ function ActiveTraining({session,registrations,onEdit,onStop,onEditRegistration,
 }
 
 function AttendeeRow({person,index,onEdit,onDelete}:{person:TrainingRegistration;index:number;onEdit?:()=>void;onDelete?:()=>void}){
-  return <div className="live-attendee-row"><span className="attendee-number">{index+1}.</span><div className="attendee-identity"><strong>{person.name}</strong>{person.booked_by&&<small>Записан от: {person.booked_by}</small>}</div><TariffBadge tariff={person.tariff}/><a className="attendee-phone" href={`tel:${person.phone}`}>{person.phone}</a><div className="attendee-actions">{onEdit&&<button className="attendee-edit" onClick={onEdit} aria-label={`Редактирай ${person.name}`}>✎</button>}{onDelete&&<button className="attendee-delete" onClick={onDelete} aria-label={`Премахни ${person.name}`}>×</button>}</div></div>;
+  const created=registrationMoment(person.created_at);
+  return <div className="live-attendee-row"><span className="attendee-number">{index+1}.</span><div className="attendee-identity"><strong>{person.name}</strong>{person.booked_by&&<small>Записан от: {person.booked_by}</small>}</div><TariffBadge tariff={person.tariff}/><a className="attendee-phone" href={`tel:${person.phone}`}>{person.phone}</a><span className="attendee-booked-at" title={`Записан на ${created.date} в ${created.time} ч.`}><b>{created.shortDate}</b><small>{created.time}</small></span><div className="attendee-actions">{onEdit&&<button className="attendee-edit" onClick={onEdit} aria-label={`Редактирай ${person.name}`}>✎</button>}{onDelete&&<button className="attendee-delete" onClick={onDelete} aria-label={`Премахни ${person.name}`}>×</button>}</div></div>;
 }
 function TariffBadge({tariff}:{tariff:TrainingRegistration['tariff']}){if(tariff==='none')return <span className="tariff-spacer"/>;if(tariff==='multisport')return <span className="tariff-badge multisport">MULTISPORT</span>;return <span className={`tariff-badge ${tariff}`}>{tariff==='card8'?'8':'12'}</span>;}
 
@@ -169,9 +176,10 @@ function HeroContentEditor({onClose,onSaved}:{onClose:()=>void;onSaved:()=>void}
 
 function RegistrationEditor({registration,onClose,onSaved}:{registration:TrainingRegistration;onClose:()=>void;onSaved:()=>void}){
   const [name,setName]=useState(registration.name);const [phone,setPhone]=useState(registration.phone);const [tariff,setTariff]=useState(registration.tariff);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
+  const created=registrationMoment(registration.created_at);
   useEffect(()=>{document.body.classList.add('modal-open');return()=>document.body.classList.remove('modal-open');},[]);
   async function save(event:FormEvent<HTMLFormElement>){event.preventDefault();if(!supabase)return;setBusy(true);setError('');const {error:requestError}=await supabase.from('training_registrations').update({name:name.trim(),phone:phone.trim(),tariff}).eq('id',registration.id);setBusy(false);if(requestError)setError(errorMessage(requestError));else onSaved();}
-  return <div className="editor-backdrop registration-editor-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><form className="training-editor registration-editor" onSubmit={save}><div className="editor-handle"/><div className="editor-title"><div><span>ЗАПИСАН УЧАСТНИК</span><h2>Редактирай данните</h2></div><button type="button" onClick={onClose}>×</button></div><label>ИМЕ И ФАМИЛИЯ<input value={name} onChange={event=>setName(event.target.value)} required minLength={2}/></label><label>ТЕЛЕФОН<input value={phone} onChange={event=>setPhone(event.target.value)} type="tel" inputMode="tel" required/></label><label>НАЧИН НА ПОСЕЩЕНИЕ<select value={tariff} onChange={event=>setTariff(event.target.value as TrainingRegistration['tariff'])}><option value="none">Без карта</option><option value="card8">Карта 8 посещения</option><option value="card12">Карта 12 посещения</option><option value="multisport">MultiSport</option></select></label>{error&&<div className="login-error">{error}</div>}<button className="editor-save" disabled={busy}>{busy?'Запазване…':'Запази промените'}</button></form></div>;
+  return <div className="editor-backdrop registration-editor-backdrop" onMouseDown={event=>event.target===event.currentTarget&&onClose()}><form className="training-editor registration-editor" onSubmit={save}><div className="editor-handle"/><div className="editor-title"><div><span>ЗАПИСАН УЧАСТНИК</span><h2>Редактирай данните</h2></div><button type="button" onClick={onClose}>×</button></div><div className="registration-created-info"><span>ЗАПИСВАНЕТО Е НАПРАВЕНО</span><strong>{created.date} · {created.time} ч.</strong></div><label>ИМЕ И ФАМИЛИЯ<input value={name} onChange={event=>setName(event.target.value)} required minLength={2}/></label><label>ТЕЛЕФОН<input value={phone} onChange={event=>setPhone(event.target.value)} type="tel" inputMode="tel" required/></label><label>НАЧИН НА ПОСЕЩЕНИЕ<select value={tariff} onChange={event=>setTariff(event.target.value as TrainingRegistration['tariff'])}><option value="none">Без карта</option><option value="card8">Карта 8 посещения</option><option value="card12">Карта 12 посещения</option><option value="multisport">MultiSport</option></select></label>{error&&<div className="login-error">{error}</div>}<button className="editor-save" disabled={busy}>{busy?'Запазване…':'Запази промените'}</button></form></div>;
 }
 
 function SessionEditor({session,onClose,onSaved}:{session:TrainingSession|null;onClose:()=>void;onSaved:()=>void}){
