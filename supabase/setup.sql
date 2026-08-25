@@ -181,10 +181,30 @@ begin
 end;
 $$;
 
+create or replace function public.owner_delete_training_invite(invite_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  deleted_count integer;
+begin
+  if not public.is_trainings_owner() then
+    raise exception 'Нямате право да изтривате покани.';
+  end if;
+  delete from public.user_invites where id = invite_id and accepted_at is null;
+  get diagnostics deleted_count = row_count;
+  return deleted_count > 0;
+end;
+$$;
+
 revoke all on function public.admin_invite_user(text,text,text) from public;
 revoke all on function public.admin_set_user_access(uuid,text,boolean) from public;
+revoke all on function public.owner_delete_training_invite(uuid) from public;
 grant execute on function public.admin_invite_user(text,text,text) to authenticated;
 grant execute on function public.admin_set_user_access(uuid,text,boolean) to authenticated;
+grant execute on function public.owner_delete_training_invite(uuid) to authenticated;
 
 -- The single owner account for this project is restricted by
 -- public.is_trainings_owner(). Other roles can read only their own profile.
