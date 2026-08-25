@@ -460,7 +460,7 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
 @media(max-width:560px){
   .admin-hero-settings{font-size:12px}
   .matched-new-training .admin-add-primary{font-size:13px}
-  .live-attendee-row{grid-template-columns:19px minmax(112px,1fr) 76px 52px 52px}
+  .live-attendee-row{grid-template-columns:19px minmax(105px,1fr) 70px 46px 54px}
   .attendee-name-and-tariff{gap:4px}
 }
 @media(max-width:430px){
