@@ -518,16 +518,16 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
   .exact-session-info h3.long-training-title{font-size:18px}
 }
 @media(max-width:430px){
-  .long-title-session .exact-featured-head.has-training-icon{grid-template-columns:96px 96px;justify-content:space-between}
-  .long-title-session .exact-featured-name{grid-column:1/-1;grid-row:1}
-  .long-title-session .exact-date-block{grid-column:1;grid-row:2}
-  .long-title-session .training-icon{grid-column:2;grid-row:2}
-  .long-title-card .exact-session-top.has-list-icon{grid-template-columns:96px 96px;justify-content:space-between}
-  .long-title-card .exact-session-info{grid-column:1/-1;grid-row:1}
-  .long-title-card .exact-session-date{grid-column:1;grid-row:2}
-  .long-title-card .training-icon{grid-column:2;grid-row:2}
-  .has-training-icon .exact-featured-name h2.long-training-title{font-size:24px}
-  .exact-session-info h3.long-training-title{font-size:23px}
+  .long-title-session .exact-featured-head.has-training-icon{grid-template-columns:96px minmax(0,1fr) 96px;gap:6px}
+  .long-title-session .exact-featured-name{grid-column:2;grid-row:1}
+  .long-title-session .exact-date-block{grid-column:1;grid-row:1}
+  .long-title-session .training-icon{grid-column:3;grid-row:1}
+  .long-title-card .exact-session-top.has-list-icon{grid-template-columns:96px minmax(0,1fr) 96px;gap:6px}
+  .long-title-card .exact-session-info{grid-column:2;grid-row:1}
+  .long-title-card .exact-session-date{grid-column:1;grid-row:1}
+  .long-title-card .training-icon{grid-column:3;grid-row:1}
+  .has-training-icon .exact-featured-name h2.long-training-title{font-size:18px;line-height:1.02}
+  .exact-session-info h3.long-training-title{font-size:17px;line-height:1.03}
 }
 
 /* Compact tariff stamps sized to the attendee row. */
