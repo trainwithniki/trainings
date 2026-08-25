@@ -136,7 +136,7 @@ begin
   end if;
 
   insert into public.user_invites (email, display_name, role, invited_by, accepted_at)
-  values (lower(trim(invite_email))::citext, nullif(trim(invite_name),''), invite_role, auth.uid(), null)
+  values (lower(trim(invite_email)), nullif(trim(invite_name),''), invite_role, auth.uid(), null)
   on conflict (email) do update set
     display_name = excluded.display_name,
     role = excluded.role,

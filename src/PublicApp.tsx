@@ -85,7 +85,7 @@ export default function PublicApp(){
     setNotice(pending.friend?`${pending.name} е добавен/а към тренировката.`:'Записването е потвърдено.');await refresh();
   }
   async function unsubscribeSession(session:TrainingSession){
-    const receipt=receipts[session.id];if(!supabase||!receipt)return;
+    const receipt=receipts[session.id];if(!supabase||!receipt||!window.confirm(`Сигурни ли сте, че искате да се отпишете от „${session.title}“ на ${prettyDate(session.date)} в ${shortTime(session.start_time)} ч.?`))return;
     const {data,error}=await supabase.rpc('cancel_training_registration',{p_registration_id:receipt.registrationId,p_cancellation_token:receipt.cancellationToken});
     if(error||!data){setNotice(error?errorMessage(error):'Записването не беше намерено.');return;}
     const next={...receipts};delete next[session.id];storeReceipts(next);setNotice(`Успешно се отписахте от ${session.title}.`);await refresh();
