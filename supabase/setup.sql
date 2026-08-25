@@ -199,12 +199,45 @@ begin
 end;
 $$;
 
+create or replace function public.owner_delete_training_profile(target_user_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_email text;
+  deleted_count integer;
+begin
+  if not public.is_trainings_owner() then
+    raise exception 'Нямате право да изтривате профили.';
+  end if;
+  if target_user_id = auth.uid() then
+    raise exception 'Не можете да изтриете собствения си owner профил.';
+  end if;
+
+  select email::text into target_email
+  from public.profiles
+  where id = target_user_id and role <> 'owner';
+
+  if target_email is null then
+    raise exception 'Профилът не съществува или е защитен.';
+  end if;
+
+  delete from auth.users where id = target_user_id;
+  get diagnostics deleted_count = row_count;
+  return deleted_count > 0;
+end;
+$$;
+
 revoke all on function public.admin_invite_user(text,text,text) from public;
 revoke all on function public.admin_set_user_access(uuid,text,boolean) from public;
 revoke all on function public.owner_delete_training_invite(uuid) from public;
+revoke all on function public.owner_delete_training_profile(uuid) from public;
 grant execute on function public.admin_invite_user(text,text,text) to authenticated;
 grant execute on function public.admin_set_user_access(uuid,text,boolean) to authenticated;
 grant execute on function public.owner_delete_training_invite(uuid) to authenticated;
+grant execute on function public.owner_delete_training_profile(uuid) to authenticated;
 
 -- The single owner account for this project is restricted by
 -- public.is_trainings_owner(). Other roles can read only their own profile.
