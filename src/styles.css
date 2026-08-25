@@ -477,7 +477,9 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
 @media(max-width:430px){.hero-card.hero-artwork{border-radius:20px}}
 
 /* More legible public titles/statuses and free-flowing attendee details. */
-.exact-featured-name h2,.exact-session-info h3{letter-spacing:.015em}
+.exact-featured-name h2{letter-spacing:.008em}
+.exact-session-info h3{letter-spacing:.015em}
+.training-title-words span{white-space:nowrap}
 .exact-featured-name .exact-status{font-size:11px}
 .exact-session-info .exact-status,.exact-session-info .exact-status.upcoming{font-size:10px}
 .attendee-inline-details{display:flex;min-width:0;align-items:center;gap:6px}
@@ -494,3 +496,35 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
   .tariff-text{font-size:7px}
 }
 @media(max-width:430px){.has-training-icon .exact-featured-name .exact-status{font-size:9px}}
+
+/* Adaptive long titles, uniform outlined tariff stamps and active-session glow. */
+.exact-featured-name h2.long-training-title{font-size:clamp(26px,6vw,37px);letter-spacing:0}
+.exact-session-info h3.long-training-title{font-size:22px;letter-spacing:.005em}
+.tariff-badge.card8,.tariff-badge.card12,.tariff-badge.multisport{
+  border:2px solid #697673;
+  border-radius:6px;
+  background:transparent;
+  color:#4f5c59;
+  box-shadow:inset 0 0 0 1px #c8cfcc;
+}
+.tariff-badge.card8,.tariff-badge.card12{font-size:13px}
+.tariff-badge.card8:after,.tariff-badge.card12:after{display:none}
+.attendee-phone{color:#42514a!important;text-decoration:none!important}
+.active-glow-card .session-status>span{color:#0ca75c;font-size:10px;text-shadow:0 0 5px #24ec87,0 0 13px #24df7c,0 0 22px #22c96e}
+@media(min-width:760px){
+  .session-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .exact-featured-name h2.long-training-title{font-size:36px}
+  .exact-session-info h3.long-training-title{font-size:18px}
+}
+@media(max-width:430px){
+  .long-title-session .exact-featured-head.has-training-icon{grid-template-columns:96px 96px;justify-content:space-between}
+  .long-title-session .exact-featured-name{grid-column:1/-1;grid-row:1}
+  .long-title-session .exact-date-block{grid-column:1;grid-row:2}
+  .long-title-session .training-icon{grid-column:2;grid-row:2}
+  .long-title-card .exact-session-top.has-list-icon{grid-template-columns:96px 96px;justify-content:space-between}
+  .long-title-card .exact-session-info{grid-column:1/-1;grid-row:1}
+  .long-title-card .exact-session-date{grid-column:1;grid-row:2}
+  .long-title-card .training-icon{grid-column:2;grid-row:2}
+  .has-training-icon .exact-featured-name h2.long-training-title{font-size:24px}
+  .exact-session-info h3.long-training-title{font-size:23px}
+}

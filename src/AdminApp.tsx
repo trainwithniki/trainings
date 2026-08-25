@@ -143,7 +143,7 @@ function AdminDashboard(){
 function ActiveTraining({session,registrations,onEdit,onStop,onEditRegistration,onDeleteRegistration}:{session:TrainingSession;registrations:TrainingRegistration[];onEdit:()=>void;onStop:()=>void;onEditRegistration:(item:TrainingRegistration)=>void;onDeleteRegistration:(item:TrainingRegistration)=>void}){
   const free=Math.max(0,session.capacity-registrations.length);
   return <article className="admin-training-card active-glow-card">
-    <div className="session-status"><span>● ТРЕНИРОВКАТА Е АКТИВНА</span></div>
+    <div className="session-status"><span>● АКТИВНА ТРЕНИРОВКА</span></div>
     <div className="active-training-line"><div><strong>{shortDate(session.date)}</strong><span>{dayName(session.date)}</span><i>{shortTime(session.start_time)}</i></div><b>{session.title} <small>| {session.location} · {session.duration} минути</small></b></div>
     <div className="admin-progress"><div><span style={{width:`${Math.min(100,registrations.length/session.capacity*100)}%`}}/></div><strong>{registrations.length} / {session.capacity}</strong></div>
     <div className="attendee-head"><strong>Записани</strong><span>Остават {free} места</span></div>
@@ -154,7 +154,7 @@ function ActiveTraining({session,registrations,onEdit,onStop,onEditRegistration,
 
 function AttendeeRow({person,index,onEdit,onDelete}:{person:TrainingRegistration;index:number;onEdit?:()=>void;onDelete?:()=>void}){
   const created=registrationMoment(person.created_at);
-  return <div className="live-attendee-row"><span className="attendee-number">{index+1}.</span><div className="attendee-inline-details"><div className="attendee-identity"><strong>{person.name}</strong>{person.booked_by&&<small>Записан от: {person.booked_by}</small>}</div><TariffBadge tariff={person.tariff}/><a className="attendee-phone" href={`tel:${person.phone}`}>{person.phone}</a></div><span className="attendee-booked-at" title={`Записан на ${created.date} в ${created.time} ч.`}><b>{created.shortDate}</b><small>{created.time}</small></span><div className="attendee-actions">{onEdit&&<button className="attendee-edit" onClick={onEdit} aria-label={`Редактирай ${person.name}`}>✎</button>}{onDelete&&<button className="attendee-delete" onClick={onDelete} aria-label={`Премахни ${person.name}`}>×</button>}</div></div>;
+  return <div className="live-attendee-row"><span className="attendee-number">{index+1}.</span><div className="attendee-inline-details"><div className="attendee-identity"><strong>{person.name}</strong>{person.booked_by&&<small>Записан от: {person.booked_by}</small>}</div><TariffBadge tariff={person.tariff}/><span className="attendee-phone">{person.phone}</span></div><span className="attendee-booked-at" title={`Записан на ${created.date} в ${created.time} ч.`}><b>{created.shortDate}</b><small>{created.time}</small></span><div className="attendee-actions">{onEdit&&<button className="attendee-edit" onClick={onEdit} aria-label={`Редактирай ${person.name}`}>✎</button>}{onDelete&&<button className="attendee-delete" onClick={onDelete} aria-label={`Премахни ${person.name}`}>×</button>}</div></div>;
 }
 function TariffBadge({tariff}:{tariff:TrainingRegistration['tariff']}){if(tariff==='none')return <span className="tariff-text">Без карта</span>;if(tariff==='multisport')return <span className="tariff-badge multisport">MULTISPORT</span>;return <span className={`tariff-badge ${tariff}`}>{tariff==='card8'?'8':'12'}</span>;}
 
