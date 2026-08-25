@@ -475,3 +475,22 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
   .fbc-public .exact-featured{grid-column:1/-1;grid-row:auto}
 }
 @media(max-width:430px){.hero-card.hero-artwork{border-radius:20px}}
+
+/* More legible public titles/statuses and free-flowing attendee details. */
+.exact-featured-name h2,.exact-session-info h3{letter-spacing:.015em}
+.exact-featured-name .exact-status{font-size:11px}
+.exact-session-info .exact-status,.exact-session-info .exact-status.upcoming{font-size:10px}
+.attendee-inline-details{display:flex;min-width:0;align-items:center;gap:6px}
+.attendee-inline-details .attendee-identity{min-width:0;flex:0 1 auto}
+.attendee-inline-details .attendee-phone{flex:0 0 auto}
+.attendee-inline-details .tariff-badge,.attendee-inline-details .tariff-text{flex:0 0 auto}
+.tariff-badge,.tariff-badge.card8,.tariff-badge.card12,.tariff-badge.multisport{width:68px;min-width:68px;height:28px}
+.tariff-text{color:#68736d;font-size:8px;font-weight:900;white-space:nowrap}
+.live-attendee-row{grid-template-columns:auto minmax(0,1fr) 62px 58px;gap:4px}
+@media(max-width:560px){
+  .live-attendee-row{grid-template-columns:auto minmax(0,1fr) 46px 54px;gap:3px}
+  .attendee-inline-details{gap:4px}
+  .tariff-badge,.tariff-badge.card8,.tariff-badge.card12,.tariff-badge.multisport{width:58px;min-width:58px;height:26px}
+  .tariff-text{font-size:7px}
+}
+@media(max-width:430px){.has-training-icon .exact-featured-name .exact-status{font-size:9px}}
