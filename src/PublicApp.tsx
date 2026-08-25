@@ -84,12 +84,13 @@ export default function PublicApp(){
     if(!pending.friend&&row)storeReceipts({...receipts,[pending.sessionId]:{sessionId:pending.sessionId,registrationId:row.registration_id,cancellationToken:row.cancellation_token,name:pending.name}});
     setNotice(pending.friend?`${pending.name} е добавен/а към тренировката.`:'Записването е потвърдено.');await refresh();
   }
-  async function unsubscribe(){
-    if(!supabase||!selected||!ownReceipt)return;
-    const {data,error}=await supabase.rpc('cancel_training_registration',{p_registration_id:ownReceipt.registrationId,p_cancellation_token:ownReceipt.cancellationToken});
+  async function unsubscribeSession(session:TrainingSession){
+    const receipt=receipts[session.id];if(!supabase||!receipt)return;
+    const {data,error}=await supabase.rpc('cancel_training_registration',{p_registration_id:receipt.registrationId,p_cancellation_token:receipt.cancellationToken});
     if(error||!data){setNotice(error?errorMessage(error):'Записването не беше намерено.');return;}
-    const next={...receipts};delete next[selected.id];storeReceipts(next);setNotice('Успешно се отписахте.');await refresh();
+    const next={...receipts};delete next[session.id];storeReceipts(next);setNotice(`Успешно се отписахте от ${session.title}.`);await refresh();
   }
+  async function unsubscribe(){if(selected)await unsubscribeSession(selected);}
 
   return <main className="site-shell fbc-public live-public">
     <section className="hero-card hero-artwork"><img src={`${baseUrl}fit-body-center-hero.webp`} alt="Fit Body Center — постигни своите цели със сила, мотивация и енергия" fetchPriority="high"/><div className="hero-accessible-copy"><span>{siteContent.hero_eyebrow}</span><h1>{siteContent.hero_title}</h1><p>{siteContent.hero_description}</p><span>{siteContent.hero_tags}</span></div></section>
@@ -100,7 +101,7 @@ export default function PublicApp(){
     {!loading&&!selected&&<section className="public-empty ready"><strong>Очаквайте новите тренировки</strong><p>Календарът е готов. Скоро тук ще се появят тренировки за записване.</p></section>}
     {selected&&<FeaturedSession session={selected} now={clock} own={Boolean(ownReceipt)} onBook={()=>setModal('booking')} onUnsubscribe={unsubscribe} onFriend={()=>setModal('friend')}/>}
 
-    {bookedSessions.length>0&&<section className="own-bookings"><div className="own-bookings-heading"><span className="own-check">✓</span><div><strong>Вашите записвания</strong><small>{bookedSessions.length} {bookedSessions.length===1?'тренировка':'тренировки'}</small></div></div><div className="own-bookings-list">{bookedSessions.map(session=><button type="button" key={session.id} className={session.id===selectedId?'selected':''} onClick={()=>{setSelectedId(session.id);setCalendarView(new Date(parseLocal(session.date).getFullYear(),parseLocal(session.date).getMonth(),1));}}><strong>{session.title}</strong><span>{prettyDate(session.date)} · {dayName(session.date)} · <b>{shortTime(session.start_time)} ч.</b></span><small>{session.location}</small></button>)}</div></section>}
+    {bookedSessions.length>0&&<section className="own-bookings"><div className="own-bookings-heading"><span className="own-check">✓</span><div><strong>Вашите записвания</strong><small>{bookedSessions.length} {bookedSessions.length===1?'тренировка':'тренировки'}</small></div></div><div className="own-bookings-list">{bookedSessions.map(session=><div key={session.id} className={`own-booking-row ${session.id===selectedId?'selected':''}`}><button type="button" className="own-booking-select" onClick={()=>{setSelectedId(session.id);setCalendarView(new Date(parseLocal(session.date).getFullYear(),parseLocal(session.date).getMonth(),1));}}><strong>{session.title}</strong><span>{prettyDate(session.date)} · {dayName(session.date)} · <b>{shortTime(session.start_time)} ч.</b></span><small>{session.location}</small></button><button type="button" className="own-booking-cancel" onClick={()=>void unsubscribeSession(session)}>Отпиши се</button></div>)}</div></section>}
 
     <section className="multisport-strip"><img src={`${baseUrl}multisport-card.webp`} alt="MultiSport карта"/><div><strong>Работи с MultiSport</strong><span>Можеш да използваш своята карта за тренировката.</span></div></section>
 
