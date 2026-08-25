@@ -56,6 +56,7 @@ export default function PublicApp(){
 
   const selected=sessions.find(item=>item.id===selectedId)??null;
   const ownReceipt=selected?receipts[selected.id]:undefined;
+  const bookedSessions=sessions.filter(item=>Boolean(receipts[item.id])).sort(sortSessions);
   const weekStart=mondayOf(clock),afterNextWeek=new Date(weekStart);afterNextWeek.setDate(afterNextWeek.getDate()+14);
   const monthStart=new Date(new Date(clock).getFullYear(),new Date(clock).getMonth(),1),monthEnd=new Date(new Date(clock).getFullYear(),new Date(clock).getMonth()+1,1);
   const upcoming=sessions.filter(item=>{const date=parseLocal(item.date);return stateOf(item,clock)!=='completed'&&date>=weekStart&&date<afterNextWeek;}).sort(sortSessions);
@@ -98,7 +99,7 @@ export default function PublicApp(){
     {!loading&&!selected&&<section className="public-empty ready"><strong>Очаквайте новите тренировки</strong><p>Календарът е готов. Скоро тук ще се появят тренировки за записване.</p></section>}
     {selected&&<FeaturedSession session={selected} now={clock} own={Boolean(ownReceipt)} onBook={()=>setModal('booking')} onUnsubscribe={unsubscribe} onFriend={()=>setModal('friend')}/>}
 
-    {selected&&ownReceipt&&<section className="own-booking"><span className="own-check">✓</span><div><strong>Записали сте се за {selected.title}</strong><p>{selected.location} · {prettyDate(selected.date)} ({dayName(selected.date)}) · {shortTime(selected.start_time)} ч.</p></div></section>}
+    {bookedSessions.length>0&&<section className="own-bookings"><div className="own-bookings-heading"><span className="own-check">✓</span><div><strong>Вашите записвания</strong><small>{bookedSessions.length} {bookedSessions.length===1?'тренировка':'тренировки'}</small></div></div><div className="own-bookings-list">{bookedSessions.map(session=><button type="button" key={session.id} className={session.id===selectedId?'selected':''} onClick={()=>{setSelectedId(session.id);setCalendarView(new Date(parseLocal(session.date).getFullYear(),parseLocal(session.date).getMonth(),1));}}><strong>{session.title}</strong><span>{prettyDate(session.date)} · {dayName(session.date)} · <b>{shortTime(session.start_time)} ч.</b></span><small>{session.location}</small></button>)}</div></section>}
 
     <section className="multisport-strip"><img src={`${baseUrl}multisport-card.webp`} alt="MultiSport карта"/><div><strong>Работи с MultiSport</strong><span>Можеш да използваш своята карта за тренировката.</span></div></section>
 
