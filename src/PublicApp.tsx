@@ -142,7 +142,7 @@ function TrainingIcon({title,compact=false}:{title:string;compact?:boolean}){
 }
 
 function TrainingPageHero({page}:{page:TrainingPage}){
-  return <section className="training-page-hero"><a href={`${baseUrl}trainings.html`}>← Всички тренировки</a><div className="training-page-copy"><span>FIT BODY CENTER</span><h1>{page.title}</h1><p>{page.description}</p><small>Избери дата и запази своето място.</small></div><div className="training-page-art"><img src={`${baseUrl}training-icons/${page.icon}`} alt={page.title} fetchPriority="high"/></div></section>;
+  return <section className="training-page-hero"><a href={`${baseUrl}trainings.html`}>← Всички тренировки</a><div className="training-page-copy"><span>FIT BODY CENTER</span><h1>{page.title}</h1><p>{page.description}</p><small>Избери дата и запази своето място.</small></div><div className="training-page-art"><span aria-hidden="true"/><img src={`${baseUrl}training-icons/${page.icon}`} alt={page.title} fetchPriority="high"/></div></section>;
 }
 
 function TrainingDirectory({current}:{current?:TrainingPage}){
