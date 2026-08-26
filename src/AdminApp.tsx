@@ -7,6 +7,7 @@ import {
   dayName, defaultSiteContent, errorMessage, isBookingOpen, isCompleted, loadAdminData, loadSiteContent, months, shortDate, shortTime,
   SiteContent, TrainingRegistration, TrainingSession, TrainingStatus,
 } from './training-data';
+import { trainingPages } from './training-pages';
 
 const baseUrl = import.meta.env.BASE_URL;
 const ownerEmail='svetlichaa@gmail.com';
@@ -66,7 +67,7 @@ function AdminDashboard({profile}:{profile:Profile}){
   const [editor,setEditor]=useState<TrainingSession|null|undefined>(undefined);
   const [registrationEditor,setRegistrationEditor]=useState<TrainingRegistration|null>(null);
   const [heroEditor,setHeroEditor]=useState(false);
-  const [section,setSection]=useState<'trainings'|'profiles'>('trainings');
+  const [section,setSection]=useState<'trainings'|'links'|'profiles'>('trainings');
   const [clock,setClock]=useState(Date.now());
   const canManageProfiles=profile.role==='owner'&&profile.email.toLocaleLowerCase('en')===ownerEmail;
 
@@ -113,7 +114,7 @@ function AdminDashboard({profile}:{profile:Profile}){
 
   return <main className="admin-shell live-admin matched-admin">
     <header className="matched-admin-head"><div><span>FIT BODY CENTER</span><h1>Админ панел</h1></div><div className="admin-header-actions"><a className="site-button" href={`${baseUrl}trainings.html`}>← Към сайта</a><button className="logout-button" onClick={signOut}>Изход</button></div></header>
-    <nav className={`matched-admin-tabs ${canManageProfiles?'owner-tabs':''}`} aria-label="Раздели"><button className={section==='trainings'?'active':''} type="button" onClick={()=>setSection('trainings')}>Тренировки</button>{canManageProfiles&&<button className={section==='profiles'?'active':''} type="button" onClick={()=>setSection('profiles')}>Профили</button>}</nav>
+    <nav className={`matched-admin-tabs ${canManageProfiles?'owner-tabs':''}`} aria-label="Раздели"><button className={section==='trainings'?'active':''} type="button" onClick={()=>setSection('trainings')}>Тренировки</button><button className={section==='links'?'active':''} type="button" onClick={()=>setSection('links')}>Линкове</button>{canManageProfiles&&<button className={section==='profiles'?'active':''} type="button" onClick={()=>setSection('profiles')}>Профили</button>}</nav>
     {section==='trainings'&&<div className="matched-new-training"><button className="admin-hero-settings" onClick={()=>setHeroEditor(true)}>✎ Текст на началната страница</button><button className="admin-add-primary" onClick={()=>setEditor(null)}>+ Нова тренировка</button></div>}
     {error&&<div className="admin-alert error">{error}</div>}
     {notice&&<button className="admin-alert success" onClick={()=>setNotice('')}>{notice}<span>×</span></button>}
@@ -138,11 +139,23 @@ function AdminDashboard({profile}:{profile:Profile}){
     </section></>}
 
     {section==='profiles'&&canManageProfiles&&<ProfileManagement ownerId={profile.id}/>}
+    {section==='links'&&<TrainingLinks/>}
 
     {editor!==undefined&&<SessionEditor session={editor} onClose={()=>setEditor(undefined)} onSaved={async()=>{setEditor(undefined);setNotice(editor?'Промените са запазени.':'Тренировката е създадена.');await refresh();}}/>}
     {registrationEditor&&<RegistrationEditor registration={registrationEditor} onClose={()=>setRegistrationEditor(null)} onSaved={async()=>{setRegistrationEditor(null);setNotice('Данните на записания човек са променени.');await refresh();}}/>}
     {heroEditor&&<HeroContentEditor onClose={()=>setHeroEditor(false)} onSaved={()=>{setHeroEditor(false);setNotice('Текстът на началната страница е запазен.');}}/>}
   </main>;
+}
+
+function TrainingLinks(){
+  const [copied,setCopied]=useState('');
+  const [copyError,setCopyError]=useState('');
+  function publicLink(slug:string){return new URL(`${baseUrl}trainings/${slug}.html`,window.location.origin).toString();}
+  async function copyLink(slug:string){
+    try{await navigator.clipboard.writeText(publicLink(slug));setCopied(slug);setCopyError('');window.setTimeout(()=>setCopied(current=>current===slug?'':current),2200);}
+    catch{setCopied('');setCopyError('Линкът не можа да се копира. Натиснете върху адреса и го копирайте ръчно.');}
+  }
+  return <section className="training-links-panel"><div className="admin-section-heading"><div><span>ЗА СПОДЕЛЯНЕ</span><h2>Линкове към тренировките</h2></div><strong>{trainingPages.length}</strong></div><p>Натиснете „Копирай“ и изпратете готовия адрес на желаната тренировка.</p>{copyError&&<div className="admin-alert error">{copyError}</div>}<div className="training-links-list">{trainingPages.map(page=>{const link=publicLink(page.slug);return <article key={page.slug}><div className="training-link-art"><img src={`${baseUrl}training-icons/${page.icon}`} alt=""/></div><div className="training-link-details"><strong>{page.title}</strong><a href={link} target="_blank" rel="noreferrer">{link}</a></div><button type="button" className={copied===page.slug?'copied':''} onClick={()=>void copyLink(page.slug)}>{copied===page.slug?'✓ Копирано':'Копирай'}</button></article>;})}</div></section>;
 }
 
 function ProfileManagement({ownerId}:{ownerId:string}){
