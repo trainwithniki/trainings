@@ -147,7 +147,7 @@ function TrainingPageHero({page}:{page:TrainingPage}){
 
 function TrainingDirectory({current}:{current?:TrainingPage}){
   const pages=current?trainingPages.filter(page=>page.slug!==current.slug):trainingPages;
-  return <section className="training-directory exact-section"><div className="training-directory-heading"><div><span>{current?'РАЗГЛЕДАЙ ОЩЕ':'FIT BODY CENTER'}</span><h2>{current?'Други тренировки':'Избери тренировка'}</h2></div>{current&&<a href={`${baseUrl}trainings.html`}>Виж целия график →</a>}</div><div className="training-directory-grid">{pages.map(page=><a href={`${baseUrl}trainings/${page.slug}.html`} key={page.slug}><div><img src={`${baseUrl}training-icons/${page.icon}`} alt="" loading="lazy"/></div><span><strong>{page.title}</strong><small>Виж тренировката <b>→</b></small></span></a>)}</div></section>;
+  return <section className="training-directory exact-section"><div className="training-directory-heading"><div><span>{current?'РАЗГЛЕДАЙ ОЩЕ':'FIT BODY CENTER'}</span><h2>{current?'Други тренировки':'Избери тренировка'}</h2></div>{current&&<a href={`${baseUrl}trainings.html`}>Виж целия график →</a>}</div><div className="training-directory-grid">{pages.map(page=><a href={page.externalUrl??`${baseUrl}trainings/${page.slug}.html`} target={page.externalUrl?'_blank':undefined} rel={page.externalUrl?'noreferrer':undefined} key={page.slug}><div><img src={`${baseUrl}training-icons/${page.icon}`} alt="" loading="lazy"/></div><span><strong>{page.title}</strong><small>Виж тренировката <b>→</b></small></span></a>)}</div></section>;
 }
 
 function SessionCard({session,now,selected,onSelect,onBook}:{session:TrainingSession;now:number;selected:boolean;onSelect:()=>void;onBook?:()=>void}){

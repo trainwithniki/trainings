@@ -4,6 +4,7 @@ export type TrainingPage = {
   icon: string;
   keywords: string[];
   description: string;
+  externalUrl?: string;
 };
 
 export const trainingPages: TrainingPage[] = [
@@ -14,7 +15,7 @@ export const trainingPages: TrainingPage[] = [
   {slug:'kids-conditioning',title:'Детска кондиционна',icon:'kids-conditioning.webp',keywords:['детска','кондиционен тим'],description:'Забавна и полезна тренировка за активни и уверени деца.'},
   {slug:'strong-body',title:'Strong Body',icon:'strong-body.webp',keywords:['strong body','strong'],description:'Интензивна тренировка за сила, издръжливост и стегнато тяло.'},
   {slug:'tae-bo',title:'Tae Bo',icon:'tae-bo.webp',keywords:['tae bo','тае бо','tae','тае'],description:'Енергична комбинация от бойни движения и кардио натоварване.'},
-  {slug:'step-aerobics',title:'Степ аеробика',icon:'step-aerobics.webp',keywords:['step','степ'],description:'Ритмична кардио тренировка със степ платформа и много настроение.'},
+  {slug:'step-aerobics',title:'Степ аеробика',icon:'step-aerobics.webp',keywords:['step','степ'],description:'Ритмична кардио тренировка със степ платформа и много настроение.',externalUrl:'https://trainwithniki.github.io/NikiStep/'},
 ];
 
 export function trainingPageForTitle(title:string){

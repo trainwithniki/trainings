@@ -150,12 +150,12 @@ function AdminDashboard({profile}:{profile:Profile}){
 function TrainingLinks(){
   const [copied,setCopied]=useState('');
   const [copyError,setCopyError]=useState('');
-  function publicLink(slug:string){return new URL(`${baseUrl}trainings/${slug}.html`,window.location.origin).toString();}
-  async function copyLink(slug:string){
-    try{await navigator.clipboard.writeText(publicLink(slug));setCopied(slug);setCopyError('');window.setTimeout(()=>setCopied(current=>current===slug?'':current),2200);}
+  function publicLink(page:(typeof trainingPages)[number]){return page.externalUrl??new URL(`${baseUrl}trainings/${page.slug}.html`,window.location.origin).toString();}
+  async function copyLink(page:(typeof trainingPages)[number]){
+    try{await navigator.clipboard.writeText(publicLink(page));setCopied(page.slug);setCopyError('');window.setTimeout(()=>setCopied(current=>current===page.slug?'':current),2200);}
     catch{setCopied('');setCopyError('Линкът не можа да се копира. Натиснете върху адреса и го копирайте ръчно.');}
   }
-  return <section className="training-links-panel"><div className="admin-section-heading"><div><span>ЗА СПОДЕЛЯНЕ</span><h2>Линкове към тренировките</h2></div><strong>{trainingPages.length}</strong></div><p>Натиснете „Копирай“ и изпратете готовия адрес на желаната тренировка.</p>{copyError&&<div className="admin-alert error">{copyError}</div>}<div className="training-links-list">{trainingPages.map(page=>{const link=publicLink(page.slug);return <article key={page.slug}><div className="training-link-art"><img src={`${baseUrl}training-icons/${page.icon}`} alt=""/></div><div className="training-link-details"><strong>{page.title}</strong><a href={link} target="_blank" rel="noreferrer">{link}</a></div><button type="button" className={copied===page.slug?'copied':''} onClick={()=>void copyLink(page.slug)}>{copied===page.slug?'✓ Копирано':'Копирай'}</button></article>;})}</div></section>;
+  return <section className="training-links-panel"><div className="admin-section-heading"><div><span>ЗА СПОДЕЛЯНЕ</span><h2>Линкове към тренировките</h2></div><strong>{trainingPages.length}</strong></div><p>Натиснете „Копирай“ и изпратете готовия адрес на желаната тренировка.</p>{copyError&&<div className="admin-alert error">{copyError}</div>}<div className="training-links-list">{trainingPages.map(page=>{const link=publicLink(page);return <article key={page.slug}><div className="training-link-art"><img src={`${baseUrl}training-icons/${page.icon}`} alt=""/></div><div className="training-link-details"><strong>{page.title}</strong><a href={link} target="_blank" rel="noreferrer">{link}</a></div><button type="button" className={copied===page.slug?'copied':''} onClick={()=>void copyLink(page)}>{copied===page.slug?'✓ Копирано':'Копирай'}</button></article>;})}</div></section>;
 }
 
 function ProfileManagement({ownerId}:{ownerId:string}){
