@@ -1,0 +1,100 @@
+name: Backup Trainings to Google Drive
+
+on:
+  schedule:
+    - cron: "15 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trainings-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      RCLONE_CONFIG_B64: ${{ secrets.RCLONE_CONFIG_B64 }}
+      BACKUP_ENCRYPTION_PASSWORD: ${{ secrets.BACKUP_ENCRYPTION_PASSWORD }}
+    steps:
+      - name: Check protected configuration
+        id: preflight
+        shell: bash
+        run: |
+          if [[ -n "$SUPABASE_DB_URL" && -n "$RCLONE_CONFIG_B64" && -n "$BACKUP_ENCRYPTION_PASSWORD" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Backup is waiting for the three protected repository secrets."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.preflight.outputs.configured == 'true'
+
+      - uses: supabase/setup-cli@v1
+        if: steps.preflight.outputs.configured == 'true'
+        with:
+          version: latest
+
+      - name: Install verified rclone
+        if: steps.preflight.outputs.configured == 'true'
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --location \
+            https://downloads.rclone.org/v1.75.0/rclone-v1.75.0-linux-amd64.zip \
+            --output rclone.zip
+          echo "aa2804e08f48250e71009c727124b6341cd0288465804a9a09d14663cabafbaa  rclone.zip" | sha256sum --check
+          unzip -q rclone.zip
+          sudo install -m 0755 rclone-v1.75.0-linux-amd64/rclone /usr/local/bin/rclone
+
+      - name: Create encrypted database backup
+        if: steps.preflight.outputs.configured == 'true'
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p backup
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/schema.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/data.sql --data-only --use-copy
+          ARCHIVE_NAME="trainings-backup-$(date -u +'%Y-%m-%d-%H%M').tar.gz.enc"
+          tar -czf - backup/schema.sql backup/data.sql | \
+            openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 \
+              -pass env:BACKUP_ENCRYPTION_PASSWORD -out "$ARCHIVE_NAME"
+          echo "name=$ARCHIVE_NAME" >> "$GITHUB_OUTPUT"
+          echo "size=$(stat -c%s "$ARCHIVE_NAME")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to the private Google Drive folder
+        if: steps.preflight.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.config/rclone"
+          printf '%s' "$RCLONE_CONFIG_B64" | base64 --decode > "$HOME/.config/rclone/rclone.conf"
+          chmod 600 "$HOME/.config/rclone/rclone.conf"
+          rclone copyto "${{ steps.archive.outputs.name }}" \
+            "trainings-backup-drive:${{ steps.archive.outputs.name }}"
+          rclone delete trainings-backup-drive: --min-age 30d \
+            --include "trainings-backup-*.tar.gz.enc"
+
+      - name: Record successful backup for the Owner panel
+        if: steps.preflight.outputs.configured == 'true'
+        shell: bash
+        env:
+          FILE_NAME: ${{ steps.archive.outputs.name }}
+          FILE_SIZE: ${{ steps.archive.outputs.size }}
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" \
+            --set=file_name="$FILE_NAME" --set=file_size="$FILE_SIZE" \
+            --command="insert into public.backup_runs (file_name,status,file_size) values (:'file_name','success',:'file_size');"
+
+      - name: Remove local sensitive files
+        if: always()
+        shell: bash
+        run: |
+          rm -rf backup "$HOME/.config/rclone/rclone.conf" rclone.zip rclone-v1.75.0-linux-amd64
+          rm -f trainings-backup-*.tar.gz.enc

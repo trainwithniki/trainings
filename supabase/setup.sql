@@ -239,5 +239,26 @@ grant execute on function public.admin_set_user_access(uuid,text,boolean) to aut
 grant execute on function public.owner_delete_training_invite(uuid) to authenticated;
 grant execute on function public.owner_delete_training_profile(uuid) to authenticated;
 
+-- Backup history is written by the protected scheduled job and is visible
+-- only to the single Trainings owner account.
+create table if not exists public.backup_runs (
+  id uuid primary key default gen_random_uuid(),
+  file_name text not null,
+  status text not null default 'success' check (status in ('success','failed')),
+  file_size bigint check (file_size is null or file_size >= 0),
+  created_at timestamptz not null default now()
+);
+
+alter table public.backup_runs enable row level security;
+drop policy if exists "backup runs owner read" on public.backup_runs;
+create policy "backup runs owner read"
+on public.backup_runs for select
+to authenticated
+using (public.is_trainings_owner());
+revoke all on table public.backup_runs from anon, public;
+grant select on table public.backup_runs to authenticated;
+create index if not exists backup_runs_created_at_idx
+on public.backup_runs (created_at desc);
+
 -- The single owner account for this project is restricted by
 -- public.is_trainings_owner(). Other roles can read only their own profile.

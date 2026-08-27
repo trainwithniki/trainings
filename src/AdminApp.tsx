@@ -165,9 +165,9 @@ function AdminDashboard({ profile }: { profile: Profile }) {
   const [registrationEditor, setRegistrationEditor] =
     useState<TrainingRegistration | null>(null);
   const [heroEditor, setHeroEditor] = useState(false);
-  const [section, setSection] = useState<"trainings" | "links" | "profiles">(
-    "trainings",
-  );
+  const [section, setSection] = useState<
+    "trainings" | "links" | "profiles" | "backups"
+  >("trainings");
   const [clock, setClock] = useState(Date.now());
   const canManageProfiles =
     profile.role === "owner" &&
@@ -320,13 +320,22 @@ function AdminDashboard({ profile }: { profile: Profile }) {
           Линкове
         </button>
         {canManageProfiles && (
-          <button
-            className={section === "profiles" ? "active" : ""}
-            type="button"
-            onClick={() => setSection("profiles")}
-          >
-            Профили
-          </button>
+          <>
+            <button
+              className={section === "backups" ? "active" : ""}
+              type="button"
+              onClick={() => setSection("backups")}
+            >
+              Backups
+            </button>
+            <button
+              className={section === "profiles" ? "active" : ""}
+              type="button"
+              onClick={() => setSection("profiles")}
+            >
+              Профили
+            </button>
+          </>
         )}
       </nav>
       {section === "trainings" && (
@@ -443,6 +452,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
       {section === "profiles" && canManageProfiles && (
         <ProfileManagement ownerId={profile.id} />
       )}
+      {section === "backups" && canManageProfiles && <BackupPanel />}
       {section === "links" && <TrainingLinks />}
 
       {editor !== undefined && (
@@ -548,6 +558,84 @@ function TrainingLinks() {
           );
         })}
       </div>
+    </section>
+  );
+}
+
+type BackupRun = {
+  id: string;
+  file_name: string;
+  status: "success" | "failed";
+  file_size: number | null;
+  created_at: string;
+};
+
+function BackupPanel() {
+  const [latest, setLatest] = useState<BackupRun | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const driveUrl =
+    "https://drive.google.com/drive/folders/1gkk0kVR9TNH_fMyS6XaPnHkIudQ0IbvQ";
+  useEffect(() => {
+    if (!supabase) return;
+    supabase
+      .from("backup_runs")
+      .select("id,file_name,status,file_size,created_at")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data, error: requestError }) => {
+        if (requestError) setError(errorMessage(requestError));
+        else setLatest((data as BackupRun | null) ?? null);
+        setLoading(false);
+      });
+  }, []);
+  const moment = latest
+    ? new Intl.DateTimeFormat("bg-BG", {
+        timeZone: "Europe/Sofia",
+        dateStyle: "long",
+        timeStyle: "short",
+      }).format(new Date(latest.created_at))
+    : "";
+  const size = latest?.file_size
+    ? `${(latest.file_size / 1024 / 1024).toFixed(2)} MB`
+    : "";
+  return (
+    <section className="backup-panel">
+      <div className="admin-section-heading">
+        <div>
+          <span>САМО ЗА OWNER</span>
+          <h2>Резервни копия</h2>
+        </div>
+        <strong>☁</strong>
+      </div>
+      <p>
+        Защитените архиви на Trainings се съхраняват в отделната папка в
+        Google Drive.
+      </p>
+      {loading ? (
+        <div className="admin-data-loading">Проверка на последния backup…</div>
+      ) : error ? (
+        <div className="admin-alert error">{error}</div>
+      ) : latest ? (
+        <article className={`backup-status-card ${latest.status}`}>
+          <div className="backup-status-icon">✓</div>
+          <div>
+            <span>ПОСЛЕДЕН УСПЕШЕН BACKUP</span>
+            <strong>{moment}</strong>
+            <small>{latest.file_name}</small>
+          </div>
+          {size && <b>{size}</b>}
+        </article>
+      ) : (
+        <div className="backup-empty-state">
+          <strong>Все още няма завършен backup</strong>
+          <span>Тук ще се появи първият успешно качен архив.</span>
+        </div>
+      )}
+      <a className="backup-drive-link" href={driveUrl} target="_blank" rel="noreferrer">
+        Отвори папката в Google Drive ↗
+      </a>
     </section>
   );
 }
