@@ -599,9 +599,13 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
 .training-page-hero{display:flex;min-height:0;aspect-ratio:auto;flex-direction:column;padding:0;background:#030303}
 .training-page-hero:before,.training-page-hero:after{display:none}
 .training-page-photo{position:relative;inset:auto;width:100%;aspect-ratio:16/9;flex:0 0 auto;overflow:hidden}
-.training-page-photo img,.training-page-hero[data-training] .training-page-photo img{object-fit:cover;object-position:center!important;transform:translateY(5%) scale(1.4)}
+.training-page-photo img,.training-page-hero[data-training] .training-page-photo img{object-fit:cover;object-position:center!important;transform:translateY(20%) scale(1.4)}
 .training-page-copy{position:relative;left:auto;right:auto;bottom:auto;width:auto;padding:20px 34px 26px;text-align:center}
 @media(max-width:560px){.training-page-copy{padding:13px 16px 18px}}
+
+/* Let the training names blend into the artwork instead of sitting as solid black labels. */
+.training-directory-grid strong{color:#171b19b8;text-shadow:none}
+.training-directory-grid small{color:#68746eb8}
 
 /* Shareable public links in the common admin panel. */
 .training-links-panel{padding:16px;border:1px solid #e0e5e2;border-radius:18px;background:#fff;box-shadow:0 12px 28px #14161c12}.training-links-panel>.admin-section-heading{margin:0 0 7px}.training-links-panel>p{margin:0 0 14px;color:#69746e;font-size:10px;line-height:1.5}.training-links-list{display:grid;gap:8px}.training-links-list article{display:grid;grid-template-columns:62px minmax(0,1fr) 96px;align-items:center;gap:10px;min-height:76px;overflow:hidden;border:1px solid #e9dcaa;border-radius:15px;background:linear-gradient(145deg,#fff,#fffcf1);padding:7px 9px 7px 7px}.training-link-art{display:grid;width:62px;height:62px;place-items:center;border-radius:12px;background:radial-gradient(circle,#ffe26462,transparent 70%)}.training-link-art img{width:58px;height:66px;transform:scale(1.2);object-fit:contain;filter:drop-shadow(0 0 6px #ffc928)}.training-link-details{min-width:0}.training-link-details strong,.training-link-details a{display:block}.training-link-details strong{font-size:15px;line-height:1.1}.training-link-details a{margin-top:6px;overflow-wrap:anywhere;color:#737b76;font-size:9px;font-weight:750;line-height:1.35;text-decoration:none}.training-links-list article>button{min-height:39px;border:0;border-radius:10px;background:#edf8f2;color:#126d49;font-size:10px;font-weight:950}.training-links-list article>button.copied{background:#19aa65;color:#fff;box-shadow:0 0 14px #19aa6545}
