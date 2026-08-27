@@ -569,6 +569,23 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
 .confirmation-session small{margin-top:7px;color:#65716b;font-size:9px;font-weight:850}
 .booking-confirmation p{margin:15px 0 6px;color:#66716b;font-size:10px;font-weight:850}
 .confirmation-countdown{display:grid;width:58px;height:58px;margin:0 auto;place-items:center;border:2px solid #ef3552;border-radius:50%;color:#d91f3f;font-size:30px;font-weight:1000;box-shadow:0 0 16px #ef355238}
+
+/* Keep attendee tariff stamps and phone numbers aligned in invisible columns. */
+.attendee-inline-details{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 56px minmax(82px,auto);
+  align-items:center;
+  column-gap:8px;
+}
+.attendee-inline-details .attendee-identity{min-width:0;width:auto}
+.attendee-inline-details .tariff-badge,
+.attendee-inline-details .tariff-text{grid-column:2;width:56px;min-width:56px;justify-self:start}
+.attendee-inline-details .attendee-phone{grid-column:3;min-width:0;white-space:nowrap}
+@media(max-width:560px){
+  .attendee-inline-details{grid-template-columns:minmax(0,1fr) 48px minmax(64px,auto);column-gap:5px}
+  .attendee-inline-details .tariff-badge,
+  .attendee-inline-details .tariff-text{width:48px;min-width:48px}
+}
 .confirmation-actions{display:grid;grid-template-columns:.72fr 1.28fr;gap:8px;margin-top:14px}
 .confirmation-actions button{min-height:45px;border-radius:12px;font-size:11px;font-weight:950}
 .confirmation-actions .confirmation-ok{border:1px solid #15985c;background:linear-gradient(135deg,#25c879,#18a660);color:#fff;box-shadow:0 8px 18px #18a6602e}
