@@ -1829,82 +1829,114 @@ function TemplateEditor({
             ×
           </button>
         </div>
-        <label>
-          ИМЕ
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            required
-          />
-        </label>
-        <label>
-          ДЕН
-          <select
-            value={weekday}
-            onChange={(event) => setWeekday(Number(event.target.value))}
-          >
-            {shortWeekdays.slice(1).map((day, index) => (
-              <option key={day} value={index + 1}>
-                {day}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          ЧАС
-          <div className="split-time template-time">
-            <select
-              value={hour}
-              onChange={(event) => setHour(event.target.value)}
-            >
-              {Array.from({ length: 24 }, (_, index) => (
-                <option key={index} value={String(index).padStart(2, "0")}>
-                  {String(index).padStart(2, "0")}
-                </option>
-              ))}
-            </select>
-            <span>:</span>
-            <select
-              value={minute}
-              onChange={(event) => setMinute(event.target.value)}
-            >
-              {[0, 10, 20, 30, 40, 45, 50].map((value) => (
-                <option key={value} value={String(value).padStart(2, "0")}>
-                  {String(value).padStart(2, "0")}
-                </option>
-              ))}
-            </select>
-            <strong>
-              {hour}:{minute}
-            </strong>
-          </div>
-        </label>
-        <label>
-          МЯСТО
-          <input
-            value={location}
-            onChange={(event) => setLocation(event.target.value)}
-            required
-          />
-        </label>
-        <div className="editor-row">
+        <div className="session-field-row template-day-time-row">
           <label>
-            ОБЩО МЕСТА
-            <input type="number" readOnly max="500" value={capacity} />
+            ДЕН
+            <select
+              value={weekday}
+              onChange={(event) => setWeekday(Number(event.target.value))}
+            >
+              {shortWeekdays.slice(1).map((day, index) => (
+                <option key={day} value={index + 1}>
+                  {day}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
-            МИНУТИ
+            ЧАС
+            <div className="split-time template-time">
+              <select
+                value={hour}
+                onChange={(event) => setHour(event.target.value)}
+              >
+                {Array.from({ length: 24 }, (_, index) => (
+                  <option key={index} value={String(index).padStart(2, "0")}>
+                    {String(index).padStart(2, "0")}
+                  </option>
+                ))}
+              </select>
+              <span>:</span>
+              <select
+                value={minute}
+                onChange={(event) => setMinute(event.target.value)}
+              >
+                {[0, 10, 20, 30, 40, 45, 50].map((value) => (
+                  <option key={value} value={String(value).padStart(2, "0")}>
+                    {String(value).padStart(2, "0")}
+                  </option>
+                ))}
+              </select>
+              <strong>
+                {hour}:{minute}
+              </strong>
+            </div>
+          </label>
+        </div>
+        <div className="session-field-row title-location-row">
+          <label>
+            ИМЕ
             <input
-              type="number"
-              min="10"
-              max="300"
-              step="5"
-              value={duration}
-              onChange={(event) => setDuration(Number(event.target.value))}
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            МЯСТО
+            <input
+              value={location}
+              onChange={(event) => setLocation(event.target.value)}
+              required
             />
           </label>
         </div>
-        <div className="capacity-groups">
+        <div className="session-settings-grid template-settings-grid">
+          <div className="session-general-settings">
+            <div className="editor-row">
+              <label>
+                ОБЩО МЕСТА
+                <input type="number" readOnly max="500" value={capacity} />
+              </label>
+              <label>
+                МИНУТИ
+                <input
+                  type="number"
+                  min="10"
+                  max="300"
+                  step="5"
+                  value={duration}
+                  onChange={(event) => setDuration(Number(event.target.value))}
+                />
+              </label>
+            </div>
+            <label className="session-activation">
+              АКТИВИРАНЕ ПРЕДИ ТРЕНИРОВКАТА
+              <div className="activation-hours">
+                <input
+                  type="number"
+                  min="0"
+                  max="720"
+                  value={bookingOpenHours}
+                  onChange={(event) =>
+                    setBookingOpenHours(Number(event.target.value))
+                  }
+                />
+                <span>часа преди тренировката</span>
+                {[24, 48, 72].map((value) => (
+                  <button
+                    type="button"
+                    key={value}
+                    className={bookingOpenHours === value ? "selected" : ""}
+                    onClick={() => setBookingOpenHours(value)}
+                  >
+                    {value} ч.
+                  </button>
+                ))}
+              </div>
+            </label>
+          </div>
+          <div className="capacity-groups">
           <strong>МЕСТА ПО НАЧИН НА ПОСЕЩЕНИЕ</strong>
           <p>Първата бройка е обща за трите начина на посещение.</p>
           <div>
@@ -1933,19 +1965,8 @@ function TemplateEditor({
               />
             </label>
           </div>
+          </div>
         </div>
-        <label>
-          АКТИВИРАНЕ ПРЕДИ ТРЕНИРОВКАТА
-          <input
-            type="number"
-            min="0"
-            max="720"
-            value={bookingOpenHours}
-            onChange={(event) =>
-              setBookingOpenHours(Number(event.target.value))
-            }
-          />
-        </label>
         {error && <div className="login-error">{error}</div>}
         <div className="template-editor-actions">
           <button className="template-delete" type="button" onClick={onDelete}>
