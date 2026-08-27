@@ -1584,13 +1584,14 @@ function SessionEditor({
               </div>
             </section>
           )}
-          <label>
-            ДАТА
-            <ModernDatePicker value={date} onChange={setDate} />
-          </label>
-          <label>
-            ЧАС (24 ЧАСА)
-            <div className="split-time">
+          <div className="session-field-row date-time-row">
+            <label>
+              ДАТА
+              <ModernDatePicker value={date} onChange={setDate} />
+            </label>
+            <label>
+              ЧАС (24 ЧАСА)
+              <div className="split-time">
               <select
                 value={hour}
                 onChange={(event) => setHour(event.target.value)}
@@ -1615,46 +1616,80 @@ function SessionEditor({
               <strong>
                 {hour}:{minute}
               </strong>
-            </div>
-          </label>
-          <label>
-            ИМЕ НА ТРЕНИРОВКАТА
-            <input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              required
-              placeholder="Пилатес"
-            />
-          </label>
-          <label>
-            МЯСТО
-            <input
-              value={location}
-              onChange={(event) => setLocation(event.target.value)}
-              required
-            />
-          </label>
-          <div className="editor-row">
+              </div>
+            </label>
+          </div>
+          <div className="session-field-row title-location-row">
             <label>
-              ОБЩО МЕСТА
-              <input type="number" readOnly max="500" value={capacity} />
+              ИМЕ НА ТРЕНИРОВКАТА
+              <input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                required
+                placeholder="Пилатес"
+              />
             </label>
             <label>
-              МИНУТИ
+              МЯСТО
               <input
-                type="number"
-                min="10"
-                max="300"
-                step="5"
-                value={duration}
-                onChange={(event) => setDuration(Number(event.target.value))}
+                value={location}
+                onChange={(event) => setLocation(event.target.value)}
+                required
               />
             </label>
           </div>
-          <div className="capacity-groups">
-            <strong>МЕСТА ПО НАЧИН НА ПОСЕЩЕНИЕ</strong>
-            <p>Точните бройки се виждат само в админ панела.</p>
-            <div>
+          <div className="session-settings-grid">
+            <div className="session-general-settings">
+              <div className="editor-row">
+                <label>
+                  ОБЩО МЕСТА
+                  <input type="number" readOnly max="500" value={capacity} />
+                </label>
+                <label>
+                  МИНУТИ
+                  <input
+                    type="number"
+                    min="10"
+                    max="300"
+                    step="5"
+                    value={duration}
+                    onChange={(event) =>
+                      setDuration(Number(event.target.value))
+                    }
+                  />
+                </label>
+              </div>
+              <label className="session-activation">
+                АВТОМАТИЧНО АКТИВИРАНЕ
+                <div className="activation-hours">
+                  <input
+                    type="number"
+                    min="0"
+                    max="720"
+                    step="1"
+                    value={bookingOpenHours}
+                    onChange={(event) =>
+                      setBookingOpenHours(Number(event.target.value))
+                    }
+                  />
+                  <span>часа преди тренировката</span>
+                  {[24, 48, 72].map((value) => (
+                    <button
+                      type="button"
+                      key={value}
+                      className={bookingOpenHours === value ? "selected" : ""}
+                      onClick={() => setBookingOpenHours(value)}
+                    >
+                      {value} ч.
+                    </button>
+                  ))}
+                </div>
+              </label>
+            </div>
+            <div className="capacity-groups">
+              <strong>МЕСТА ПО НАЧИН НА ПОСЕЩЕНИЕ</strong>
+              <p>Точните бройки се виждат само в админ панела.</p>
+              <div>
               <label>
                 Без карта + Карта 8 + Карта 12
                 <input
@@ -1679,34 +1714,9 @@ function SessionEditor({
                   }
                 />
               </label>
+              </div>
             </div>
           </div>
-          <label>
-            АВТОМАТИЧНО АКТИВИРАНЕ
-            <div className="activation-hours">
-              <input
-                type="number"
-                min="0"
-                max="720"
-                step="1"
-                value={bookingOpenHours}
-                onChange={(event) =>
-                  setBookingOpenHours(Number(event.target.value))
-                }
-              />
-              <span>часа преди тренировката</span>
-              {[24, 48, 72].map((value) => (
-                <button
-                  type="button"
-                  key={value}
-                  className={bookingOpenHours === value ? "selected" : ""}
-                  onClick={() => setBookingOpenHours(value)}
-                >
-                  {value} ч.
-                </button>
-              ))}
-            </div>
-          </label>
           {error && <div className="login-error">{error}</div>}
           <button className="editor-save" disabled={busy}>
             {busy
