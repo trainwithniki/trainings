@@ -10,7 +10,11 @@ create table if not exists public.training_sessions (
   title text not null default 'Тренировка',
   location text not null default 'Fit Body Center',
   duration integer not null default 60 check (duration between 10 and 300),
-  capacity integer not null default 20 check (capacity between 1 and 500),
+  capacity integer not null default 25 check (capacity between 1 and 500),
+  standard_capacity integer not null default 15 check (standard_capacity between 0 and 500),
+  multisport_capacity integer not null default 10 check (multisport_capacity between 0 and 500),
+  standard_available boolean not null default true,
+  multisport_available boolean not null default true,
   booking_open_hours integer not null default 48 check (booking_open_hours between 0 and 720),
   status text not null default 'scheduled' check (status in ('scheduled','open','closed','completed')),
   registration_count integer not null default 0 check (registration_count >= 0),
@@ -21,6 +25,15 @@ create table if not exists public.training_sessions (
 alter table public.training_sessions
   add column if not exists booking_open_hours integer not null default 48
   check (booking_open_hours between 0 and 720);
+
+alter table public.training_sessions
+  add column if not exists standard_capacity integer not null default 15 check (standard_capacity between 0 and 500),
+  add column if not exists multisport_capacity integer not null default 10 check (multisport_capacity between 0 and 500),
+  add column if not exists standard_available boolean not null default true,
+  add column if not exists multisport_available boolean not null default true;
+
+update public.training_sessions
+set capacity = standard_capacity + multisport_capacity;
 
 create table if not exists public.training_registrations (
   id uuid primary key default gen_random_uuid(),
@@ -101,20 +114,32 @@ declare
 begin
   target_id := coalesce(new.session_id, old.session_id);
   update public.training_sessions s
-  set registration_count = (
-    select count(*)::integer
-    from public.training_registrations r
-    where r.session_id = target_id and r.cancelled_at is null
-  ), updated_at = now()
+  set registration_count = counts.total_count,
+      standard_available = counts.standard_count < s.standard_capacity,
+      multisport_available = counts.multisport_count < s.multisport_capacity,
+      updated_at = now()
+  from (
+    select count(*)::integer total_count,
+      count(*) filter (where tariff in ('none','card8','card12'))::integer standard_count,
+      count(*) filter (where tariff = 'multisport')::integer multisport_count
+    from public.training_registrations
+    where session_id = target_id and cancelled_at is null
+  ) counts
   where s.id = target_id;
 
   if tg_op = 'UPDATE' and old.session_id is distinct from new.session_id then
     update public.training_sessions s
-    set registration_count = (
-      select count(*)::integer
-      from public.training_registrations r
-      where r.session_id = old.session_id and r.cancelled_at is null
-    ), updated_at = now()
+    set registration_count = counts.total_count,
+        standard_available = counts.standard_count < s.standard_capacity,
+        multisport_available = counts.multisport_count < s.multisport_capacity,
+        updated_at = now()
+    from (
+      select count(*)::integer total_count,
+        count(*) filter (where tariff in ('none','card8','card12'))::integer standard_count,
+        count(*) filter (where tariff = 'multisport')::integer multisport_count
+      from public.training_registrations
+      where session_id = old.session_id and cancelled_at is null
+    ) counts
     where s.id = old.session_id;
   end if;
   return coalesce(new, old);
@@ -123,7 +148,7 @@ $$;
 
 drop trigger if exists refresh_training_count on public.training_registrations;
 create trigger refresh_training_count
-after insert or delete or update of cancelled_at, session_id
+after insert or delete or update of cancelled_at, session_id, tariff
 on public.training_registrations
 for each row execute function public.refresh_training_registration_count();
 
@@ -133,6 +158,12 @@ language plpgsql
 set search_path = ''
 as $$
 begin
+  new.capacity := new.standard_capacity + new.multisport_capacity;
+  select count(*) filter (where tariff in ('none','card8','card12')) < new.standard_capacity,
+         count(*) filter (where tariff = 'multisport') < new.multisport_capacity
+  into new.standard_available, new.multisport_available
+  from public.training_registrations
+  where session_id = new.id and cancelled_at is null;
   new.updated_at := now();
   return new;
 end;
@@ -140,8 +171,12 @@ $$;
 
 drop trigger if exists touch_training_session on public.training_sessions;
 create trigger touch_training_session
-before update on public.training_sessions
+before insert or update on public.training_sessions
 for each row execute function public.touch_training_session();
+
+-- Recalculate the two public availability flags for existing sessions.
+update public.training_sessions
+set standard_capacity = standard_capacity;
 
 create or replace function public.book_training(
   p_session_id uuid,
@@ -158,6 +193,7 @@ as $$
 declare
   target public.training_sessions%rowtype;
   inserted public.training_registrations%rowtype;
+  group_count integer;
 begin
   if char_length(trim(p_name)) < 2 then raise exception 'Въведете име и фамилия.'; end if;
   if char_length(regexp_replace(p_phone, '\D', '', 'g')) < 7 then raise exception 'Въведете валиден телефон.'; end if;
@@ -171,6 +207,16 @@ begin
   ) then raise exception 'Записването за тази тренировка не е отворено.'; end if;
   if (target.date + target.start_time) <= timezone('Europe/Sofia', now()) then raise exception 'Тренировката вече е започнала.'; end if;
   if target.registration_count >= target.capacity then raise exception 'Няма свободни места.'; end if;
+
+  if p_tariff = 'multisport' then
+    select count(*)::integer into group_count from public.training_registrations
+    where session_id = p_session_id and cancelled_at is null and tariff = 'multisport';
+    if group_count >= target.multisport_capacity then raise exception 'Няма свободни места за MultiSport.'; end if;
+  else
+    select count(*)::integer into group_count from public.training_registrations
+    where session_id = p_session_id and cancelled_at is null and tariff in ('none','card8','card12');
+    if group_count >= target.standard_capacity then raise exception 'Няма свободни места за избрания начин на посещение.'; end if;
+  end if;
 
   insert into public.training_registrations (session_id, name, phone, tariff, booked_by)
   values (p_session_id, trim(p_name), trim(p_phone), p_tariff, nullif(trim(p_booked_by), ''))
@@ -206,7 +252,10 @@ end;
 $$;
 
 revoke all on table public.training_registrations from anon, public;
-grant select on table public.training_sessions to anon, authenticated;
+revoke select on table public.training_sessions from anon;
+grant select (id,date,start_time,title,location,duration,capacity,booking_open_hours,status,registration_count,standard_available,multisport_available,created_at,updated_at)
+on table public.training_sessions to anon;
+grant select on table public.training_sessions to authenticated;
 grant insert, update, delete on table public.training_sessions to authenticated;
 grant select, insert, update, delete on table public.training_registrations to authenticated;
 revoke all on function public.book_training(uuid,text,text,text,text) from public;
@@ -222,12 +271,22 @@ create table if not exists public.training_templates (
   start_time time not null,
   location text not null default 'Fit Body Center',
   duration integer not null default 60 check (duration between 10 and 300),
-  capacity integer not null default 20 check (capacity between 1 and 500),
+  capacity integer not null default 25 check (capacity between 1 and 500),
+  standard_capacity integer not null default 15 check (standard_capacity between 0 and 500),
+  multisport_capacity integer not null default 10 check (multisport_capacity between 0 and 500),
   booking_open_hours integer not null default 48 check (booking_open_hours between 0 and 720),
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.training_templates
+  add column if not exists standard_capacity integer not null default 15 check (standard_capacity between 0 and 500),
+  add column if not exists multisport_capacity integer not null default 10 check (multisport_capacity between 0 and 500);
+
+update public.training_templates
+set standard_capacity = 15, multisport_capacity = 10, capacity = 25
+where capacity = 20 and standard_capacity = 15 and multisport_capacity = 10;
 
 alter table public.training_templates enable row level security;
 drop policy if exists "training templates admin access" on public.training_templates;
@@ -240,7 +299,11 @@ grant select, insert, update, delete on table public.training_templates to authe
 
 create or replace function public.touch_training_template()
 returns trigger language plpgsql set search_path = '' as $$
-begin new.updated_at := now(); return new; end;
+begin
+  new.capacity := new.standard_capacity + new.multisport_capacity;
+  new.updated_at := now();
+  return new;
+end;
 $$;
 drop trigger if exists touch_training_template on public.training_templates;
 create trigger touch_training_template before update on public.training_templates

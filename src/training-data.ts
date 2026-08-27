@@ -1,7 +1,7 @@
-import { supabase } from './supabase';
+import { supabase } from "./supabase";
 
-export type TrainingStatus = 'scheduled' | 'open' | 'closed' | 'completed';
-export type Tariff = 'none' | 'card8' | 'card12' | 'multisport';
+export type TrainingStatus = "scheduled" | "open" | "closed" | "completed";
+export type Tariff = "none" | "card8" | "card12" | "multisport";
 
 export type TrainingSession = {
   id: string;
@@ -11,6 +11,10 @@ export type TrainingSession = {
   location: string;
   duration: number;
   capacity: number;
+  standard_capacity: number;
+  multisport_capacity: number;
+  standard_available: boolean;
+  multisport_available: boolean;
   booking_open_hours: number;
   status: TrainingStatus;
   registration_count: number;
@@ -45,71 +49,149 @@ export type SiteContent = {
 };
 
 export const defaultSiteContent: SiteContent = {
-  id: 'main',
-  hero_eyebrow: 'ТВОЕТО МЯСТО ЗА ДВИЖЕНИЕ',
-  hero_title: 'Сила. Баланс.\nДобро настроение.',
-  hero_description: 'Групови тренировки за всяко ниво в модерна и приятелска среда.',
-  hero_tags: 'Pilates, Step Aerobics, Functional',
+  id: "main",
+  hero_eyebrow: "ТВОЕТО МЯСТО ЗА ДВИЖЕНИЕ",
+  hero_title: "Сила. Баланс.\nДобро настроение.",
+  hero_description:
+    "Групови тренировки за всяко ниво в модерна и приятелска среда.",
+  hero_tags: "Pilates, Step Aerobics, Functional",
 };
 
-export const months = ['януари','февруари','март','април','май','юни','юли','август','септември','октомври','ноември','декември'];
-export const weekdays = ['Понеделник','Вторник','Сряда','Четвъртък','Петък','Събота','Неделя'];
-export const tariffLabels: Record<Tariff,string> = {
-  none: 'Без карта',
-  card8: 'Карта 8 посещения',
-  card12: 'Карта 12 посещения',
-  multisport: 'MultiSport',
+export const months = [
+  "януари",
+  "февруари",
+  "март",
+  "април",
+  "май",
+  "юни",
+  "юли",
+  "август",
+  "септември",
+  "октомври",
+  "ноември",
+  "декември",
+];
+export const weekdays = [
+  "Понеделник",
+  "Вторник",
+  "Сряда",
+  "Четвъртък",
+  "Петък",
+  "Събота",
+  "Неделя",
+];
+export const tariffLabels: Record<Tariff, string> = {
+  none: "Без карта",
+  card8: "Карта 8 посещения",
+  card12: "Карта 12 посещения",
+  multisport: "MultiSport",
 };
 
-export function parseLocal(date:string,time='00:00') {
-  const [year,month,day]=date.split('-').map(Number);
-  const [hour,minute]=time.slice(0,5).split(':').map(Number);
-  return new Date(year,month-1,day,hour||0,minute||0);
+export function parseLocal(date: string, time = "00:00") {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.slice(0, 5).split(":").map(Number);
+  return new Date(year, month - 1, day, hour || 0, minute || 0);
 }
 
-export function dayName(date:string) { return weekdays[(parseLocal(date).getDay()+6)%7]; }
-export function prettyDate(date:string,withYear=false) {
-  const value=parseLocal(date);
-  return `${value.getDate()} ${months[value.getMonth()]}${withYear?` ${value.getFullYear()}`:''}`;
+export function dayName(date: string) {
+  return weekdays[(parseLocal(date).getDay() + 6) % 7];
 }
-export function shortDate(date:string) { return `${date.slice(8,10)}.${date.slice(5,7)}`; }
-export function shortTime(time:string) { return time.slice(0,5); }
-export function isCompleted(session:TrainingSession,now=Date.now()) {
-  return session.status==='completed' || parseLocal(session.date,session.start_time).getTime()<=now;
+export function prettyDate(date: string, withYear = false) {
+  const value = parseLocal(date);
+  return `${value.getDate()} ${months[value.getMonth()]}${withYear ? ` ${value.getFullYear()}` : ""}`;
 }
-export function isBookingOpen(session:TrainingSession,now=Date.now()) {
-  if(isCompleted(session,now)||session.status==='closed'||session.status==='completed')return false;
-  if(session.status==='open')return true;
-  return now>=parseLocal(session.date,session.start_time).getTime()-(session.booking_open_hours??48)*3600000;
+export function shortDate(date: string) {
+  return `${date.slice(8, 10)}.${date.slice(5, 7)}`;
+}
+export function shortTime(time: string) {
+  return time.slice(0, 5);
+}
+export function isCompleted(session: TrainingSession, now = Date.now()) {
+  return (
+    session.status === "completed" ||
+    parseLocal(session.date, session.start_time).getTime() <= now
+  );
+}
+export function isBookingOpen(session: TrainingSession, now = Date.now()) {
+  if (
+    isCompleted(session, now) ||
+    session.status === "closed" ||
+    session.status === "completed"
+  )
+    return false;
+  if (session.status === "open") return true;
+  return (
+    now >=
+    parseLocal(session.date, session.start_time).getTime() -
+      (session.booking_open_hours ?? 48) * 3600000
+  );
 }
 
 export async function loadSessions() {
-  if(!supabase) return [] as TrainingSession[];
-  const {data,error}=await supabase.from('training_sessions').select('*').order('date').order('start_time');
-  if(error) throw error;
-  return (data||[]) as TrainingSession[];
+  if (!supabase) return [] as TrainingSession[];
+  const { data, error } = await supabase
+    .from("training_sessions")
+    .select(
+      "id,date,start_time,title,location,duration,capacity,booking_open_hours,status,registration_count,standard_available,multisport_available,created_at,updated_at",
+    )
+    .order("date")
+    .order("start_time");
+  if (error) throw error;
+  return (data || []).map((item) => ({
+    ...item,
+    standard_capacity: 15,
+    multisport_capacity: 10,
+  })) as TrainingSession[];
 }
 
 export async function loadSiteContent() {
-  if(!supabase) return defaultSiteContent;
-  const {data,error}=await supabase.from('site_content').select('id,hero_eyebrow,hero_title,hero_description,hero_tags').eq('id','main').maybeSingle();
-  if(error) throw error;
-  return (data as SiteContent|null)??defaultSiteContent;
+  if (!supabase) return defaultSiteContent;
+  const { data, error } = await supabase
+    .from("site_content")
+    .select("id,hero_eyebrow,hero_title,hero_description,hero_tags")
+    .eq("id", "main")
+    .maybeSingle();
+  if (error) throw error;
+  return (data as SiteContent | null) ?? defaultSiteContent;
 }
 
 export async function loadAdminData() {
-  if(!supabase) return {sessions:[] as TrainingSession[],registrations:[] as TrainingRegistration[]};
-  const [sessionResult,registrationResult]=await Promise.all([
-    supabase.from('training_sessions').select('*').order('date').order('start_time'),
-    supabase.from('training_registrations').select('id,session_id,name,phone,tariff,booked_by,cancelled_at,created_at').order('created_at'),
+  if (!supabase)
+    return {
+      sessions: [] as TrainingSession[],
+      registrations: [] as TrainingRegistration[],
+    };
+  const [sessionResult, registrationResult] = await Promise.all([
+    supabase
+      .from("training_sessions")
+      .select("*")
+      .order("date")
+      .order("start_time"),
+    supabase
+      .from("training_registrations")
+      .select(
+        "id,session_id,name,phone,tariff,booked_by,cancelled_at,created_at",
+      )
+      .order("created_at"),
   ]);
-  if(sessionResult.error) throw sessionResult.error;
-  if(registrationResult.error) throw registrationResult.error;
-  return {sessions:(sessionResult.data||[]) as TrainingSession[],registrations:(registrationResult.data||[]) as TrainingRegistration[]};
+  if (sessionResult.error) throw sessionResult.error;
+  if (registrationResult.error) throw registrationResult.error;
+  return {
+    sessions: (sessionResult.data || []) as TrainingSession[],
+    registrations: (registrationResult.data || []) as TrainingRegistration[],
+  };
 }
 
-export function errorMessage(error:unknown) {
-  const message=error instanceof Error?error.message:String((error as {message?:string})?.message||error||'Възникна грешка.');
-  if(/duplicate|already|unique/i.test(message)) return 'Този телефон вече е записан за тренировката.';
+export function errorMessage(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : String(
+          (error as { message?: string })?.message ||
+            error ||
+            "Възникна грешка.",
+        );
+  if (/duplicate|already|unique/i.test(message))
+    return "Този телефон вече е записан за тренировката.";
   return message;
 }
