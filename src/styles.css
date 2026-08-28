@@ -649,4 +649,8 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
 /* Keep the requested two-column field rows visible on phones as well. */
 @media(max-width:650px){
   .session-field-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+  .date-time-row{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)}
+  .date-time-row .split-time{gap:3px}
+  .date-time-row .split-time select{font-size:13px!important;padding:0 4px}
 }
+.modern-date-toggle{grid-template-columns:minmax(0,1fr) 22px}

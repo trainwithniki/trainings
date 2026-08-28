@@ -2018,7 +2018,6 @@ function ModernDatePicker({
           setOpen(!open);
         }}
       >
-        <span>Избрана дата</span>
         <strong>
           {String(selected.getDate()).padStart(2, "0")}.
           {String(selected.getMonth() + 1).padStart(2, "0")}.
