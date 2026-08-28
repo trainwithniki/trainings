@@ -1,6 +1,13 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   Profile,
@@ -1434,6 +1441,7 @@ function SessionEditor({
   const [bookingOpenHours, setBookingOpenHours] = useState(
     session?.booking_open_hours ?? 48,
   );
+  const fieldsRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [templates, setTemplates] = useState<QuickTemplate[]>(quickTemplates);
@@ -1482,6 +1490,10 @@ function SessionEditor({
     setStandardCapacity(template.standard_capacity);
     setMultisportCapacity(template.multisport_capacity);
     setBookingOpenHours(template.booking_open_hours);
+    window.setTimeout(
+      () => fieldsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }),
+      0,
+    );
   }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1584,7 +1596,7 @@ function SessionEditor({
               </div>
             </section>
           )}
-          <div className="session-field-row date-time-row">
+          <div ref={fieldsRef} className="session-field-row date-time-row">
             <label>
               ДАТА
               <ModernDatePicker value={date} onChange={setDate} />
@@ -1687,7 +1699,7 @@ function SessionEditor({
               </label>
             </div>
             <div className="capacity-groups">
-              <strong>МЕСТА ПО НАЧИН НА ПОСЕЩЕНИЕ</strong>
+              <strong>ЛИМИТИ</strong>
               <p>Точните бройки се виждат само в админ панела.</p>
               <div>
               <label>
@@ -1937,7 +1949,7 @@ function TemplateEditor({
             </label>
           </div>
           <div className="capacity-groups">
-          <strong>МЕСТА ПО НАЧИН НА ПОСЕЩЕНИЕ</strong>
+          <strong>ЛИМИТИ</strong>
           <p>Първата бройка е обща за трите начина на посещение.</p>
           <div>
             <label>

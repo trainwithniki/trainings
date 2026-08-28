@@ -654,3 +654,11 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
   .date-time-row .split-time select{font-size:13px!important;padding:0 4px}
 }
 .modern-date-toggle{grid-template-columns:minmax(0,1fr) 22px}
+
+/* Make the booking timestamp easier to read in the attendee list. */
+.attendee-booked-at b{font-size:10px}
+.attendee-booked-at small{font-size:9px}
+@media(max-width:560px){
+  .attendee-booked-at b{font-size:9px}
+  .attendee-booked-at small{font-size:8px}
+}
