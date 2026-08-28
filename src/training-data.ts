@@ -144,12 +144,12 @@ export async function loadSessions() {
   })) as TrainingSession[];
 }
 
-export async function loadSiteContent() {
+export async function loadSiteContent(contentId = "main") {
   if (!supabase) return defaultSiteContent;
   const { data, error } = await supabase
     .from("site_content")
     .select("id,hero_eyebrow,hero_title,hero_description,hero_tags")
-    .eq("id", "main")
+    .eq("id", contentId)
     .maybeSingle();
   if (error) throw error;
   return (data as SiteContent | null) ?? defaultSiteContent;

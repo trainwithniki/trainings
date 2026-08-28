@@ -105,7 +105,7 @@ export default function PublicApp() {
     try {
       const [data, content] = await Promise.all([
         loadSessions(),
-        loadSiteContent(),
+        loadSiteContent(activeTrainingPage?.slug ?? "main"),
       ]);
       const ordered = [...data].sort(sortSessions);
       const visible = activeTrainingPage
@@ -119,7 +119,17 @@ export default function PublicApp() {
         "session",
       );
       setAllSessions(ordered);
-      setSiteContent(content);
+      setSiteContent(
+        activeTrainingPage && content.id === "main"
+          ? {
+              id: activeTrainingPage.slug,
+              hero_eyebrow: "FIT BODY CENTER",
+              hero_title: activeTrainingPage.title,
+              hero_description: activeTrainingPage.description,
+              hero_tags: "Избери дата и запази своето място.",
+            }
+          : content,
+      );
       setLoadError("");
       setSelectedId((current) =>
         visible.some((item) => item.id === current)
@@ -371,7 +381,7 @@ export default function PublicApp() {
   return (
     <main className="site-shell fbc-public live-public">
       {activeTrainingPage ? (
-        <TrainingPageHero page={activeTrainingPage} />
+        <TrainingPageHero page={activeTrainingPage} content={siteContent} />
       ) : (
         <section className="hero-card hero-artwork">
           <img
@@ -898,7 +908,19 @@ function TrainingIcon({
   );
 }
 
-function TrainingPageHero({ page }: { page: TrainingPage }) {
+function TrainingPageHero({
+  page,
+  content,
+}: {
+  page: TrainingPage;
+  content: SiteContent;
+}) {
+  const titleScale = Number(
+    window.localStorage.getItem(`training-title-scale-${page.slug}`) ?? 1,
+  );
+  const bodyScale = Number(
+    window.localStorage.getItem(`training-body-scale-${page.slug}`) ?? 1,
+  );
   return (
     <section className="training-page-hero" data-training={page.slug}>
       <div className="training-page-photo">
@@ -910,10 +932,18 @@ function TrainingPageHero({ page }: { page: TrainingPage }) {
       </div>
       <a href={`${baseUrl}trainings.html`}>← Всички тренировки</a>
       <div className="training-page-copy">
-        <span>FIT BODY CENTER</span>
-        <h1>{page.title}</h1>
-        <p>{page.description}</p>
-        <small>Избери дата и запази своето място.</small>
+        <span>{content.hero_eyebrow}</span>
+        <h1
+          style={{
+            fontSize: `clamp(${48 * titleScale}px, ${7 * titleScale}vw, ${78 * titleScale}px)`,
+          }}
+        >
+          {content.hero_title}
+        </h1>
+        <p style={{ fontSize: `${14 * bodyScale}px` }}>
+          {content.hero_description}
+        </p>
+        <small>{content.hero_tags}</small>
       </div>
     </section>
   );

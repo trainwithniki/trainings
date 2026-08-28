@@ -654,6 +654,8 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
   .date-time-row .split-time select{font-size:13px!important;padding:0 4px}
 }
 .modern-date-toggle{grid-template-columns:minmax(0,1fr) 22px}
+.hero-font-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;padding:10px;border:1px solid #dbe5df;border-radius:12px;background:#f7faf8}.hero-font-controls label{margin:0}.hero-font-controls input[type=range]{height:24px;margin-top:3px;padding:0;background:transparent}
+@media(max-width:560px){.hero-font-controls{grid-template-columns:1fr}}
 
 /* Make the booking timestamp easier to read in the attendee list. */
 .attendee-booked-at b{font-size:10px}

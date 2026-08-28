@@ -23,7 +23,6 @@ import {
   isBookingOpen,
   isCompleted,
   loadAdminData,
-  loadSiteContent,
   months,
   shortDate,
   shortTime,
@@ -349,6 +348,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         <div className="matched-new-training">
           <button
             className="admin-hero-settings"
+            type="button"
             onClick={() => setHeroEditor(true)}
           >
             ✎ Текст на началната страница
@@ -1215,18 +1215,48 @@ function HeroContentEditor({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const [selectedSlug, setSelectedSlug] = useState("main");
   const [content, setContent] = useState<SiteContent>(defaultSiteContent);
+  const [contents, setContents] = useState<Record<string, SiteContent>>({});
+  const [titleScale, setTitleScale] = useState(1);
+  const [bodyScale, setBodyScale] = useState(1);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
     document.body.classList.add("modal-open");
-    loadSiteContent()
-      .then(setContent)
+    (async () => {
+      if (!supabase) return;
+      const { data, error: requestError } = await supabase
+        .from("site_content")
+        .select("id,hero_eyebrow,hero_title,hero_description,hero_tags")
+        .order("id");
+      if (requestError) throw requestError;
+      const next: Record<string, SiteContent> = {};
+      (data ?? []).forEach((item) => (next[item.id] = item as SiteContent));
+      setContents(next);
+      setContent(next.main ?? defaultSiteContent);
+    })()
       .catch((reason) => setError(errorMessage(reason)))
       .finally(() => setLoading(false));
     return () => document.body.classList.remove("modal-open");
   }, []);
+  useEffect(() => {
+    const value = contents[selectedSlug] ??
+      (selectedSlug === "main"
+        ? defaultSiteContent
+        : {
+            id: selectedSlug,
+            hero_eyebrow: "FIT BODY CENTER",
+            hero_title: trainingPages.find((page) => page.slug === selectedSlug)?.title ?? "",
+            hero_description:
+              trainingPages.find((page) => page.slug === selectedSlug)?.description ?? "",
+            hero_tags: "Избери дата и запази своето място.",
+          });
+    setContent(value);
+    setTitleScale(Number(window.localStorage.getItem(`training-title-scale-${selectedSlug}`) ?? 1));
+    setBodyScale(Number(window.localStorage.getItem(`training-body-scale-${selectedSlug}`) ?? 1));
+  }, [contents, selectedSlug]);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase) return;
@@ -1234,7 +1264,9 @@ function HeroContentEditor({
     setError("");
     const { error: requestError } = await supabase
       .from("site_content")
-      .upsert({ ...content, id: "main" });
+      .upsert({ ...content, id: selectedSlug });
+    window.localStorage.setItem(`training-title-scale-${selectedSlug}`, String(titleScale));
+    window.localStorage.setItem(`training-body-scale-${selectedSlug}`, String(bodyScale));
     setBusy(false);
     if (requestError) setError(errorMessage(requestError));
     else onSaved();
@@ -1259,6 +1291,18 @@ function HeroContentEditor({
           <div className="admin-data-loading">Зареждане…</div>
         ) : (
           <>
+            <label>
+              ТРЕНИРОВКА
+              <select
+                value={selectedSlug}
+                onChange={(event) => setSelectedSlug(event.target.value)}
+              >
+                <option value="main">Начална страница</option>
+                {trainingPages.map((page) => (
+                  <option key={page.slug} value={page.slug}>{page.title}</option>
+                ))}
+              </select>
+            </label>
             <label>
               МАЛЪК НАДПИС
               <input
@@ -1305,6 +1349,16 @@ function HeroContentEditor({
               />
               <small>Разделяй ги със запетая.</small>
             </label>
+            <div className="hero-font-controls">
+              <label>
+                РАЗМЕР НА ЗАГЛАВИЕТО
+                <input type="range" min="0.8" max="1.4" step="0.05" value={titleScale} onChange={(event) => setTitleScale(Number(event.target.value))} />
+              </label>
+              <label>
+                РАЗМЕР НА ОПИСАНИЕТО
+                <input type="range" min="0.8" max="1.4" step="0.05" value={bodyScale} onChange={(event) => setBodyScale(Number(event.target.value))} />
+              </label>
+            </div>
           </>
         )}
         {error && <div className="login-error">{error}</div>}
