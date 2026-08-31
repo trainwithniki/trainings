@@ -219,16 +219,34 @@ function AdminDashboard({ profile }: { profile: Profile }) {
   }, []);
 
   const now = clock;
+  const canAccessTitle = useCallback(
+    (title: string) =>
+      profile.role === "owner" ||
+      profile.training_access == null ||
+      profile.training_access.some(
+        (allowed) =>
+          allowed.trim().toLocaleLowerCase("bg") ===
+          title.trim().toLocaleLowerCase("bg"),
+      ),
+    [profile.role, profile.training_access],
+  );
+  const accessibleSessions = useMemo(
+    () => sessions.filter((item) => canAccessTitle(item.title)),
+    [sessions, canAccessTitle],
+  );
   const upcoming = useMemo(
-    () => sessions.filter((item) => !isCompleted(item, now)).sort(sortSessions),
-    [sessions, now],
+    () =>
+      accessibleSessions
+        .filter((item) => !isCompleted(item, now))
+        .sort(sortSessions),
+    [accessibleSessions, now],
   );
   const completed = useMemo(
     () =>
-      sessions
+      accessibleSessions
         .filter((item) => isCompleted(item, now))
         .sort((a, b) => -sortSessions(a, b)),
-    [sessions, now],
+    [accessibleSessions, now],
   );
   const active = upcoming.filter((item) => isBookingOpen(item, now));
   const registrationsFor = (id: string) =>
@@ -465,6 +483,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
       {editor !== undefined && (
         <SessionEditor
           session={editor}
+          allowedTrainingTitles={profile.training_access}
           onClose={() => setEditor(undefined)}
           onSaved={async () => {
             setEditor(undefined);
@@ -654,23 +673,31 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [trainingTitles, setTrainingTitles] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
     if (!supabase) return;
     setLoading(true);
-    const [profilesResult, invitesResult] = await Promise.all([
+    const [profilesResult, invitesResult, templatesResult] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at"),
       supabase
         .from("user_invites")
         .select("*")
         .is("accepted_at", null)
         .order("created_at", { ascending: false }),
+      supabase.from("training_templates").select("title").order("sort_order"),
     ]);
-    const requestError = profilesResult.error ?? invitesResult.error;
+    const requestError =
+      profilesResult.error ?? invitesResult.error ?? templatesResult.error;
     if (requestError) setError(errorMessage(requestError));
     else {
       setProfiles((profilesResult.data ?? []) as Profile[]);
       setInvites((invitesResult.data ?? []) as UserInvite[]);
+      setTrainingTitles(
+        Array.from(
+          new Set((templatesResult.data ?? []).map((item) => item.title.trim())),
+        ),
+      );
       setError("");
     }
     setLoading(false);
@@ -688,6 +715,14 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
       email = String(form.get("email") ?? "").trim(),
       name = String(form.get("name") ?? "").trim(),
       role = String(form.get("role") ?? "editor") as ProfileRole;
+    const trainingAccess = form
+      .getAll("training_access")
+      .map(String)
+      .filter(Boolean);
+    if (trainingAccess.length === 0) {
+      setError("Изберете поне една тренировка за този профил.");
+      return;
+    }
     setBusyId("invite");
     setError("");
     setNotice("");
@@ -695,6 +730,7 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
       invite_email: email,
       invite_name: name || null,
       invite_role: role,
+      invite_training_access: trainingAccess,
     });
     setBusyId("");
     if (requestError) {
@@ -705,6 +741,28 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
     setNotice(
       `Поканата за ${email} е създадена. Копирайте линка от списъка по-долу.`,
     );
+    await refresh();
+  }
+
+  async function updateTrainingAccess(item: Profile, nextAccess: string[]) {
+    if (!supabase || item.id === ownerId || nextAccess.length === 0) {
+      if (nextAccess.length === 0)
+        setError("Профилът трябва да има достъп до поне една тренировка.");
+      return;
+    }
+    setBusyId(item.id);
+    setError("");
+    setNotice("");
+    const { error: requestError } = await supabase.rpc(
+      "owner_set_training_access",
+      { target_user_id: item.id, next_training_access: nextAccess },
+    );
+    setBusyId("");
+    if (requestError) {
+      setError(errorMessage(requestError));
+      return;
+    }
+    setNotice(`Тренировките за ${item.email} са обновени.`);
     await refresh();
   }
 
@@ -833,6 +891,22 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
             <option value="admin">Администратор</option>
           </select>
         </label>
+        <fieldset className="profile-training-access invite-training-access">
+          <legend>ДОСТЪП ДО ТРЕНИРОВКИ</legend>
+          <div>
+            {trainingTitles.map((title) => (
+              <label key={title}>
+                <input
+                  type="checkbox"
+                  name="training_access"
+                  value={title}
+                />
+                <span>{title}</span>
+              </label>
+            ))}
+          </div>
+          <small>Изберете една или повече.</small>
+        </fieldset>
         <button disabled={busyId === "invite"}>
           {busyId === "invite" ? "Създаване…" : "Създай покана"}
         </button>
@@ -902,6 +976,37 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
                     </button>
                   </div>
                 )}
+                <fieldset className="profile-training-access existing-training-access">
+                  <legend>ТРЕНИРОВКИ</legend>
+                  {item.id === ownerId ? (
+                    <small>Пълен достъп до всички тренировки</small>
+                  ) : (
+                    <div>
+                      {trainingTitles.map((title) => {
+                        const access = item.training_access;
+                        const checked =
+                          access == null || access.includes(title);
+                        return (
+                          <label key={title}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={busyId === item.id}
+                              onChange={() => {
+                                const current = access ?? trainingTitles;
+                                const next = checked
+                                  ? current.filter((value) => value !== title)
+                                  : [...current, title];
+                                void updateTrainingAccess(item, next);
+                              }}
+                            />
+                            <span>{title}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </fieldset>
               </div>
             ))}
           </div>
@@ -919,6 +1024,9 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
                       <small>
                         {invite.email} ·{" "}
                         {invite.role === "admin" ? "Администратор" : "Редактор"}
+                      </small>
+                      <small className="invite-training-summary">
+                        {(invite.training_access ?? []).join(" · ")}
                       </small>
                     </span>
                     <div className="invite-actions">
@@ -1468,10 +1576,12 @@ function RegistrationEditor({
 
 function SessionEditor({
   session,
+  allowedTrainingTitles,
   onClose,
   onSaved,
 }: {
   session: TrainingSession | null;
+  allowedTrainingTitles: string[] | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -1480,7 +1590,9 @@ function SessionEditor({
   const [date, setDate] = useState(initialDate);
   const [hour, setHour] = useState(initialTime.slice(0, 2));
   const [minute, setMinute] = useState(initialTime.slice(3, 5));
-  const [title, setTitle] = useState(session?.title ?? "Пилатес");
+  const [title, setTitle] = useState(
+    session?.title ?? allowedTrainingTitles?.[0] ?? "Пилатес",
+  );
   const [location, setLocation] = useState(
     session?.location ?? "Fit Body Center",
   );
@@ -1498,7 +1610,13 @@ function SessionEditor({
   const fieldsRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [templates, setTemplates] = useState<QuickTemplate[]>(quickTemplates);
+  const [templates, setTemplates] = useState<QuickTemplate[]>(() =>
+    allowedTrainingTitles === null
+      ? quickTemplates
+      : quickTemplates.filter((item) =>
+          allowedTrainingTitles.includes(item.title),
+        ),
+  );
   const [manageTemplates, setManageTemplates] = useState(false);
   const [templateEditor, setTemplateEditor] = useState<QuickTemplate | null>(
     null,
@@ -1513,7 +1631,13 @@ function SessionEditor({
       .order("start_time");
     if (data?.length)
       setTemplates(
-        data.map((item, index) => ({
+        data
+          .filter(
+            (item) =>
+              allowedTrainingTitles === null ||
+              allowedTrainingTitles.includes(item.title),
+          )
+          .map((item, index) => ({
           id: item.id,
           title: item.title,
           weekday: item.weekday,
@@ -1525,9 +1649,9 @@ function SessionEditor({
           multisport_capacity: item.multisport_capacity ?? 10,
           booking_open_hours: item.booking_open_hours,
           sort_order: item.sort_order ?? index,
-        })),
+          })),
       );
-  }, []);
+  }, [allowedTrainingTitles]);
   useEffect(() => {
     document.body.classList.add("modal-open");
     loadTemplates();

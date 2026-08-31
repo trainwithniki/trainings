@@ -1,0 +1,34 @@
+name: Apply Trainings database rules
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/setup.sql"
+      - "supabase/trainings.sql"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trainings-database-rules
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check protected database connection
+        shell: bash
+        run: test -n "$SUPABASE_DB_URL"
+      - name: Apply access rules
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" --set=ON_ERROR_STOP=on --file=supabase/setup.sql
+          psql "$SUPABASE_DB_URL" --set=ON_ERROR_STOP=on --file=supabase/trainings.sql

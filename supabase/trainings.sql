@@ -77,6 +77,33 @@ $$;
 revoke all on function public.is_trainings_admin() from public;
 grant execute on function public.is_trainings_admin() to authenticated;
 
+create or replace function public.can_access_training(training_title text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.active = true
+      and p.role in ('owner','admin','editor')
+      and (
+        p.role = 'owner'
+        or p.training_access is null
+        or exists (
+          select 1 from unnest(p.training_access) allowed_title
+          where lower(trim(allowed_title)) = lower(trim(training_title))
+        )
+      )
+  )
+$$;
+
+revoke all on function public.can_access_training(text) from public;
+grant execute on function public.can_access_training(text) to authenticated;
+
 drop policy if exists "training sessions public read" on public.training_sessions;
 create policy "training sessions public read"
 on public.training_sessions for select
@@ -87,21 +114,30 @@ drop policy if exists "training sessions admin write" on public.training_session
 create policy "training sessions admin write"
 on public.training_sessions for all
 to authenticated
-using (public.is_trainings_admin())
-with check (public.is_trainings_admin());
+using (public.can_access_training(title))
+with check (public.can_access_training(title));
 
 drop policy if exists "training registrations admin read" on public.training_registrations;
 create policy "training registrations admin read"
 on public.training_registrations for select
 to authenticated
-using (public.is_trainings_admin());
+using (exists (
+  select 1 from public.training_sessions s
+  where s.id = session_id and public.can_access_training(s.title)
+));
 
 drop policy if exists "training registrations admin write" on public.training_registrations;
 create policy "training registrations admin write"
 on public.training_registrations for all
 to authenticated
-using (public.is_trainings_admin())
-with check (public.is_trainings_admin());
+using (exists (
+  select 1 from public.training_sessions s
+  where s.id = session_id and public.can_access_training(s.title)
+))
+with check (exists (
+  select 1 from public.training_sessions s
+  where s.id = session_id and public.can_access_training(s.title)
+));
 
 create or replace function public.refresh_training_registration_count()
 returns trigger
@@ -293,8 +329,8 @@ drop policy if exists "training templates admin access" on public.training_templ
 create policy "training templates admin access"
 on public.training_templates for all
 to authenticated
-using (public.is_trainings_admin())
-with check (public.is_trainings_admin());
+using (public.can_access_training(title))
+with check (public.can_access_training(title));
 grant select, insert, update, delete on table public.training_templates to authenticated;
 
 create or replace function public.touch_training_template()

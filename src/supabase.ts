@@ -40,6 +40,7 @@ export type Profile = {
   display_name: string | null;
   role: ProfileRole;
   active: boolean;
+  training_access: string[] | null;
   created_at: string;
 };
 
@@ -48,6 +49,7 @@ export type UserInvite = {
   email: string;
   display_name: string | null;
   role: ProfileRole;
+  training_access: string[] | null;
   accepted_at: string | null;
   created_at: string;
 };
