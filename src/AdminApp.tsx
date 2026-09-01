@@ -891,22 +891,26 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
             <option value="admin">Администратор</option>
           </select>
         </label>
-        <fieldset className="profile-training-access invite-training-access">
-          <legend>ДОСТЪП ДО ТРЕНИРОВКИ</legend>
-          <div>
-            {trainingTitles.map((title) => (
-              <label key={title}>
-                <input
-                  type="checkbox"
-                  name="training_access"
-                  value={title}
-                />
-                <span>{title}</span>
-              </label>
-            ))}
-          </div>
-          <small>Изберете една или повече.</small>
-        </fieldset>
+        <details className="training-access-menu invite-training-access">
+          <summary>
+            <span>Достъп до тренировки</span>
+            <small>Изберете една или повече</small>
+          </summary>
+          <fieldset className="profile-training-access">
+            <div>
+              {trainingTitles.map((title) => (
+                <label key={title}>
+                  <input
+                    type="checkbox"
+                    name="training_access"
+                    value={title}
+                  />
+                  <span>{title}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </details>
         <button disabled={busyId === "invite"}>
           {busyId === "invite" ? "Създаване…" : "Създай покана"}
         </button>
@@ -976,37 +980,48 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
                     </button>
                   </div>
                 )}
-                <fieldset className="profile-training-access existing-training-access">
-                  <legend>ТРЕНИРОВКИ</legend>
-                  {item.id === ownerId ? (
-                    <small>Пълен достъп до всички тренировки</small>
-                  ) : (
-                    <div>
-                      {trainingTitles.map((title) => {
-                        const access = item.training_access;
-                        const checked =
-                          access == null || access.includes(title);
-                        return (
-                          <label key={title}>
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              disabled={busyId === item.id}
-                              onChange={() => {
-                                const current = access ?? trainingTitles;
-                                const next = checked
-                                  ? current.filter((value) => value !== title)
-                                  : [...current, title];
-                                void updateTrainingAccess(item, next);
-                              }}
-                            />
-                            <span>{title}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </fieldset>
+                <details className="training-access-menu existing-training-access">
+                  <summary>
+                    <span>Достъп до тренировки</span>
+                    <small>
+                      {item.id === ownerId
+                        ? "Всички"
+                        : item.training_access == null
+                          ? "Всички"
+                          : `${item.training_access.length} избрани`}
+                    </small>
+                  </summary>
+                  <fieldset className="profile-training-access">
+                    {item.id === ownerId ? (
+                      <small>Пълен достъп до всички тренировки</small>
+                    ) : (
+                      <div>
+                        {trainingTitles.map((title) => {
+                          const access = item.training_access;
+                          const checked =
+                            access == null || access.includes(title);
+                          return (
+                            <label key={title}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={busyId === item.id}
+                                onChange={() => {
+                                  const current = access ?? trainingTitles;
+                                  const next = checked
+                                    ? current.filter((value) => value !== title)
+                                    : [...current, title];
+                                  void updateTrainingAccess(item, next);
+                                }}
+                              />
+                              <span>{title}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </fieldset>
+                </details>
               </div>
             ))}
           </div>
