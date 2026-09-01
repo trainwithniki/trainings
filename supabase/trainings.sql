@@ -431,6 +431,11 @@ as $$
 declare
   actor public.profiles%rowtype;
   row_data jsonb;
+  old_data jsonb := '{}'::jsonb;
+  new_data jsonb := '{}'::jsonb;
+  changes jsonb := '{}'::jsonb;
+  audited_fields text[];
+  field_name text;
   item_label text;
 begin
   if auth.uid() is null then
@@ -448,6 +453,25 @@ begin
     return new;
   end if;
   row_data := case when tg_op = 'DELETE' then to_jsonb(old) else to_jsonb(new) end;
+  if tg_op <> 'INSERT' then old_data := to_jsonb(old); end if;
+  if tg_op <> 'DELETE' then new_data := to_jsonb(new); end if;
+  audited_fields := case tg_table_name
+    when 'training_sessions' then array['title','date','start_time','location','duration','capacity','standard_capacity','multisport_capacity','booking_open_hours','status']
+    when 'training_registrations' then array['name','phone','tariff','booked_by','cancelled_at']
+    when 'training_templates' then array['title','weekday','start_time','location','duration','capacity','standard_capacity','multisport_capacity','booking_open_hours']
+    when 'site_content' then array['hero_eyebrow','hero_title','hero_description','hero_tags']
+    when 'profiles' then array['display_name','email','role','active','training_access','can_view_history']
+    when 'user_invites' then array['display_name','email','role','training_access','can_view_history','accepted_at']
+    else array[]::text[]
+  end;
+  foreach field_name in array audited_fields loop
+    if old_data->field_name is distinct from new_data->field_name then
+      changes := changes || jsonb_build_object(
+        field_name,
+        jsonb_build_object('from',old_data->field_name,'to',new_data->field_name)
+      );
+    end if;
+  end loop;
   item_label := case tg_table_name
     when 'training_sessions' then concat_ws(' · ', row_data->>'title', row_data->>'date', left(row_data->>'start_time',5))
     when 'training_registrations' then row_data->>'name'
@@ -461,7 +485,12 @@ begin
     (actor_id,actor_email,actor_name,action,entity_type,entity_id,details)
   values
     (actor.id,actor.email::text,actor.display_name,tg_op,tg_table_name,row_data->>'id',
-     jsonb_build_object('label',item_label,'date',row_data->>'date','time',left(row_data->>'start_time',5)));
+     jsonb_build_object(
+       'label',item_label,
+       'date',row_data->>'date',
+       'time',left(row_data->>'start_time',5),
+       'changes',changes
+     ));
   if tg_op = 'DELETE' then return old; else return new; end if;
 end;
 $$;

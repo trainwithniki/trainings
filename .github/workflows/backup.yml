@@ -89,8 +89,10 @@ jobs:
         run: |
           set -euo pipefail
           psql "$SUPABASE_DB_URL" \
-            --set=file_name="$FILE_NAME" --set=file_size="$FILE_SIZE" \
-            --command="insert into public.backup_runs (file_name,status,file_size) values (:'file_name','success',:'file_size');"
+            --set=file_name="$FILE_NAME" --set=file_size="$FILE_SIZE" <<'SQL'
+          insert into public.backup_runs (file_name,status,file_size)
+          values (:'file_name','success',:'file_size');
+          SQL
 
       - name: Remove local sensitive files
         if: always()

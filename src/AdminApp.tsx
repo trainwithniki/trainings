@@ -614,7 +614,12 @@ type AuditLog = {
   action: "INSERT" | "UPDATE" | "DELETE";
   entity_type: string;
   entity_id: string | null;
-  details: { label?: string; date?: string; time?: string } | null;
+  details: {
+    label?: string;
+    date?: string;
+    time?: string;
+    changes?: Record<string, { from?: unknown; to?: unknown }>;
+  } | null;
   created_at: string;
 };
 
@@ -631,6 +636,63 @@ const auditActionLabels: Record<AuditLog["action"], string> = {
   UPDATE: "редактира",
   DELETE: "изтри",
 };
+const auditFieldLabels: Record<string, string> = {
+  display_name: "Име",
+  email: "Имейл",
+  role: "Роля",
+  active: "Активен профил",
+  training_access: "Разрешени тренировки",
+  can_view_history: "Достъп до историята",
+  title: "Име на тренировката",
+  date: "Дата",
+  start_time: "Час",
+  location: "Място",
+  duration: "Продължителност",
+  capacity: "Общо места",
+  standard_capacity: "Места без MultiSport",
+  multisport_capacity: "Места за MultiSport",
+  booking_open_hours: "Автоматично отваряне",
+  status: "Статус",
+  weekday: "Ден от седмицата",
+  name: "Име на записания",
+  phone: "Телефон",
+  tariff: "Начин на посещение",
+  booked_by: "Записан от",
+  cancelled_at: "Отписване",
+  accepted_at: "Приета покана",
+  hero_eyebrow: "Малък надпис",
+  hero_title: "Главно заглавие",
+  hero_description: "Описание",
+  hero_tags: "Етикети",
+};
+function auditValue(field: string, value: unknown) {
+  if (value === null || value === undefined || value === "") return "Няма";
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "Няма";
+  if (typeof value === "boolean") return value ? "Да" : "Не";
+  const text = String(value);
+  if (field === "role")
+    return { owner: "Owner", admin: "Администратор", editor: "Редактор" }[
+      text
+    ] ?? text;
+  if (field === "status")
+    return {
+      scheduled: "Предстояща",
+      open: "Отворена",
+      closed: "Затворена",
+      completed: "Проведена",
+    }[text] ?? text;
+  if (field === "tariff")
+    return {
+      none: "Без карта",
+      card8: "Карта 8 посещения",
+      card12: "Карта 12 посещения",
+      multisport: "MultiSport",
+    }[text] ?? text;
+  if (field === "start_time") return text.slice(0, 5);
+  if (field === "duration") return `${text} минути`;
+  if (field === "booking_open_hours") return `${text} часа по-рано`;
+  return text;
+}
 
 function AuditHistoryPanel() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -687,6 +749,7 @@ function AuditHistoryPanel() {
               second: "2-digit",
             }).format(new Date(log.created_at));
             const label = log.details?.label?.trim();
+            const changes = Object.entries(log.details?.changes ?? {});
             return (
               <article key={log.id} className={`audit-item ${log.action.toLowerCase()}`}>
                 <time dateTime={log.created_at}>{moment}</time>
@@ -694,11 +757,36 @@ function AuditHistoryPanel() {
                   <strong>{log.actor_name || log.actor_email}</strong>
                   {log.actor_name && <small>{log.actor_email}</small>}
                 </div>
-                <p>
-                  <b>{auditActionLabels[log.action]}</b>{" "}
-                  {auditEntityLabels[log.entity_type] ?? log.entity_type}
-                  {label ? <span> „{label}“</span> : null}
-                </p>
+                <div className="audit-description">
+                  <p>
+                    <b>{auditActionLabels[log.action]}</b>{" "}
+                    {auditEntityLabels[log.entity_type] ?? log.entity_type}
+                    {label ? <span> „{label}“</span> : null}
+                  </p>
+                  {changes.length > 0 && (
+                    <ul className="audit-change-list">
+                      {changes.map(([field, change]) => (
+                        <li key={field}>
+                          <strong>{auditFieldLabels[field] ?? field}:</strong>{" "}
+                          {log.action === "UPDATE" ? (
+                            <>
+                              <span>{auditValue(field, change.from)}</span>
+                              <i>→</i>
+                              <b>{auditValue(field, change.to)}</b>
+                            </>
+                          ) : (
+                            <b>
+                              {auditValue(
+                                field,
+                                log.action === "DELETE" ? change.from : change.to,
+                              )}
+                            </b>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </article>
             );
           })}
