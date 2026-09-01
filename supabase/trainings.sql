@@ -399,3 +399,89 @@ begin
     alter publication supabase_realtime add table public.site_content;
   end if;
 end $$;
+
+-- Immutable Owner-only audit history for administrative changes.
+create table if not exists public.audit_logs (
+  id bigint generated always as identity primary key,
+  actor_id uuid references public.profiles(id) on delete set null,
+  actor_email text not null,
+  actor_name text,
+  action text not null check (action in ('INSERT','UPDATE','DELETE')),
+  entity_type text not null,
+  entity_id text,
+  details jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists audit_logs_created_at_idx
+  on public.audit_logs (created_at desc);
+alter table public.audit_logs enable row level security;
+drop policy if exists "audit logs owner read" on public.audit_logs;
+create policy "audit logs owner read"
+on public.audit_logs for select to authenticated
+using (public.is_trainings_owner());
+revoke all on table public.audit_logs from anon, public;
+grant select on table public.audit_logs to authenticated;
+
+create or replace function public.record_admin_audit()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actor public.profiles%rowtype;
+  row_data jsonb;
+  item_label text;
+begin
+  if auth.uid() is null then
+    if tg_op = 'DELETE' then return old; else return new; end if;
+  end if;
+  select * into actor from public.profiles
+  where id = auth.uid() and active = true
+    and role in ('owner','admin','editor');
+  if actor.id is null then
+    if tg_op = 'DELETE' then return old; else return new; end if;
+  end if;
+  if tg_table_name = 'training_sessions' and tg_op = 'UPDATE'
+     and (to_jsonb(new) - array['registration_count','standard_available','multisport_available','updated_at'])
+       = (to_jsonb(old) - array['registration_count','standard_available','multisport_available','updated_at']) then
+    return new;
+  end if;
+  row_data := case when tg_op = 'DELETE' then to_jsonb(old) else to_jsonb(new) end;
+  item_label := case tg_table_name
+    when 'training_sessions' then concat_ws(' · ', row_data->>'title', row_data->>'date', left(row_data->>'start_time',5))
+    when 'training_registrations' then row_data->>'name'
+    when 'training_templates' then row_data->>'title'
+    when 'site_content' then coalesce(row_data->>'hero_title', row_data->>'id')
+    when 'profiles' then coalesce(row_data->>'display_name', row_data->>'email')
+    when 'user_invites' then coalesce(row_data->>'display_name', row_data->>'email')
+    else null
+  end;
+  insert into public.audit_logs
+    (actor_id,actor_email,actor_name,action,entity_type,entity_id,details)
+  values
+    (actor.id,actor.email::text,actor.display_name,tg_op,tg_table_name,row_data->>'id',
+     jsonb_build_object('label',item_label,'date',row_data->>'date','time',left(row_data->>'start_time',5)));
+  if tg_op = 'DELETE' then return old; else return new; end if;
+end;
+$$;
+revoke all on function public.record_admin_audit() from public;
+
+drop trigger if exists audit_training_sessions on public.training_sessions;
+create trigger audit_training_sessions after insert or update or delete on public.training_sessions
+for each row execute function public.record_admin_audit();
+drop trigger if exists audit_training_registrations on public.training_registrations;
+create trigger audit_training_registrations after insert or update or delete on public.training_registrations
+for each row execute function public.record_admin_audit();
+drop trigger if exists audit_training_templates on public.training_templates;
+create trigger audit_training_templates after insert or update or delete on public.training_templates
+for each row execute function public.record_admin_audit();
+drop trigger if exists audit_site_content on public.site_content;
+create trigger audit_site_content after insert or update or delete on public.site_content
+for each row execute function public.record_admin_audit();
+drop trigger if exists audit_profiles on public.profiles;
+create trigger audit_profiles after insert or update or delete on public.profiles
+for each row execute function public.record_admin_audit();
+drop trigger if exists audit_user_invites on public.user_invites;
+create trigger audit_user_invites after insert or update or delete on public.user_invites
+for each row execute function public.record_admin_audit();

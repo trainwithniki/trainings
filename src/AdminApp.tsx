@@ -172,7 +172,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
     useState<TrainingRegistration | null>(null);
   const [heroEditor, setHeroEditor] = useState(false);
   const [section, setSection] = useState<
-    "trainings" | "links" | "profiles" | "backups"
+    "trainings" | "links" | "profiles" | "backups" | "history"
   >("trainings");
   const [clock, setClock] = useState(Date.now());
   const canManageProfiles =
@@ -353,6 +353,13 @@ function AdminDashboard({ profile }: { profile: Profile }) {
               Backups
             </button>
             <button
+              className={section === "history" ? "active" : ""}
+              type="button"
+              onClick={() => setSection("history")}
+            >
+              История
+            </button>
+            <button
               className={section === "profiles" ? "active" : ""}
               type="button"
               onClick={() => setSection("profiles")}
@@ -478,6 +485,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         <ProfileManagement ownerId={profile.id} />
       )}
       {section === "backups" && canManageProfiles && <BackupPanel />}
+      {section === "history" && canManageProfiles && <AuditHistoryPanel />}
       {section === "links" && <TrainingLinks />}
 
       {editor !== undefined && (
@@ -595,6 +603,107 @@ type BackupRun = {
   file_size: number | null;
   created_at: string;
 };
+
+type AuditLog = {
+  id: number;
+  actor_email: string;
+  actor_name: string | null;
+  action: "INSERT" | "UPDATE" | "DELETE";
+  entity_type: string;
+  entity_id: string | null;
+  details: { label?: string; date?: string; time?: string } | null;
+  created_at: string;
+};
+
+const auditEntityLabels: Record<string, string> = {
+  training_sessions: "тренировка",
+  training_registrations: "записване",
+  training_templates: "шаблон",
+  site_content: "текст на начална страница",
+  profiles: "профил",
+  user_invites: "покана",
+};
+const auditActionLabels: Record<AuditLog["action"], string> = {
+  INSERT: "създаде",
+  UPDATE: "редактира",
+  DELETE: "изтри",
+};
+
+function AuditHistoryPanel() {
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const loadHistory = useCallback(async () => {
+    if (!supabase) return;
+    setLoading(true);
+    const { data, error: requestError } = await supabase
+      .from("audit_logs")
+      .select(
+        "id,actor_email,actor_name,action,entity_type,entity_id,details,created_at",
+      )
+      .order("created_at", { ascending: false })
+      .limit(300);
+    if (requestError) setError(errorMessage(requestError));
+    else {
+      setLogs((data ?? []) as AuditLog[]);
+      setError("");
+    }
+    setLoading(false);
+  }, []);
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+  return (
+    <section className="audit-panel">
+      <div className="admin-section-heading">
+        <div>
+          <span>САМО ЗА OWNER</span>
+          <h2>История на действията</h2>
+        </div>
+        <button type="button" onClick={() => void loadHistory()}>
+          Обнови
+        </button>
+      </div>
+      <p>Показани са последните 300 действия в администраторския панел.</p>
+      {loading ? (
+        <div className="admin-data-loading">Зареждане на историята…</div>
+      ) : error ? (
+        <div className="admin-alert error">{error}</div>
+      ) : logs.length === 0 ? (
+        <div className="audit-empty">Все още няма записани действия.</div>
+      ) : (
+        <div className="audit-list">
+          {logs.map((log) => {
+            const moment = new Intl.DateTimeFormat("bg-BG", {
+              timeZone: "Europe/Sofia",
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            }).format(new Date(log.created_at));
+            const label = log.details?.label?.trim();
+            return (
+              <article key={log.id} className={`audit-item ${log.action.toLowerCase()}`}>
+                <time dateTime={log.created_at}>{moment}</time>
+                <div>
+                  <strong>{log.actor_name || log.actor_email}</strong>
+                  {log.actor_name && <small>{log.actor_email}</small>}
+                </div>
+                <p>
+                  <b>{auditActionLabels[log.action]}</b>{" "}
+                  {auditEntityLabels[log.entity_type] ?? log.entity_type}
+                  {label ? <span> „{label}“</span> : null}
+                </p>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
 
 function BackupPanel() {
   const [latest, setLatest] = useState<BackupRun | null>(null);
