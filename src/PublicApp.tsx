@@ -841,28 +841,7 @@ function FeaturedSession({
         </div>
         <Stopwatch minutes={session.duration} />
       </div>
-      <div className="exact-capacity">
-        <div>
-          <span>
-            ЗАЕТИ МЕСТА<strong>{session.registration_count}</strong>
-            <small className="capacity-breakdown">
-              Карти {session.standard_registration_count}/{session.standard_capacity}
-              <b>·</b>
-              MultiSport {session.multisport_registration_count}/{session.multisport_capacity}
-            </small>
-          </span>
-          <span>
-            СВОБОДНИ<strong>{free}</strong>
-          </span>
-        </div>
-        <i>
-          <b
-            style={{
-              width: `${Math.min(100, (session.registration_count / session.capacity) * 100)}%`,
-            }}
-          />
-        </i>
-      </div>
+      <CapacityMeter session={session} occupiedLabel="ЗАЕТИ МЕСТА" />
       {state === "open" &&
         (own ? (
           <div className="exact-own-actions">
@@ -1050,28 +1029,7 @@ function SessionCard({
       </button>
       <div className="exact-session-stats">
         <Stopwatch minutes={session.duration} />
-        <div className="exact-capacity">
-          <div>
-            <span>
-              ЗАЕТИ<strong>{session.registration_count}</strong>
-              <small className="capacity-breakdown">
-                Карти {session.standard_registration_count}/{session.standard_capacity}
-                <b>·</b>
-                MultiSport {session.multisport_registration_count}/{session.multisport_capacity}
-              </small>
-            </span>
-            <span>
-              СВОБОДНИ<strong>{free}</strong>
-            </span>
-          </div>
-          <i>
-            <b
-              style={{
-                width: `${Math.min(100, (session.registration_count / session.capacity) * 100)}%`,
-              }}
-            />
-          </i>
-        </div>
+        <CapacityMeter session={session} occupiedLabel="ЗАЕТИ" />
       </div>
       {state === "open" && (
         <BookingCountdown session={session} now={now} compact />
@@ -1087,6 +1045,48 @@ function SessionCard({
         </button>
       )}
     </article>
+  );
+}
+function CapacityMeter({
+  session,
+  occupiedLabel,
+}: {
+  session: TrainingSession;
+  occupiedLabel: string;
+}) {
+  const free = Math.max(0, session.capacity - session.registration_count);
+  const percentage = (count: number, capacity: number) =>
+    capacity > 0 ? Math.min(100, (count / capacity) * 100) : 0;
+  return (
+    <div className="exact-capacity grouped-capacity-meter">
+      <div className="capacity-total-row">
+        <span>
+          {occupiedLabel}<strong>{session.registration_count}</strong>
+        </span>
+        <span>
+          СВОБОДНИ<strong>{free}</strong>
+        </span>
+      </div>
+      <i className="capacity-total-bar">
+        <b style={{ width: `${percentage(session.registration_count, session.capacity)}%` }} />
+      </i>
+      <div className="capacity-group-split">
+        <section>
+          <div>
+            <span>КАРТИ</span>
+            <strong>{session.standard_registration_count}/{session.standard_capacity}</strong>
+          </div>
+          <i><b style={{ width: `${percentage(session.standard_registration_count, session.standard_capacity)}%` }} /></i>
+        </section>
+        <section>
+          <div>
+            <span>MULTISPORT</span>
+            <strong>{session.multisport_registration_count}/{session.multisport_capacity}</strong>
+          </div>
+          <i><b style={{ width: `${percentage(session.multisport_registration_count, session.multisport_capacity)}%` }} /></i>
+        </section>
+      </div>
+    </div>
   );
 }
 function Stopwatch({ minutes }: { minutes: number }) {
