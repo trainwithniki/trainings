@@ -1083,7 +1083,7 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
             <label className="history-permission">
               <input type="checkbox" name="can_view_history" />
               <span>
-                <b>Вижда историята</b>
+                <b>История</b>
                 <small>Достъп до действията на всички администратори</small>
               </span>
             </label>
@@ -1221,7 +1221,7 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
                           }
                         />
                         <span>
-                          <b>Вижда историята</b>
+                          <b>История</b>
                           <small>
                             Достъп до действията на всички администратори
                           </small>
@@ -1253,7 +1253,7 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
                       </small>
                       {invite.can_view_history && (
                         <small className="invite-history-access">
-                          Вижда историята
+                          История
                         </small>
                       )}
                     </span>
