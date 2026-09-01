@@ -1110,127 +1110,136 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
           </div>
           <div className="users-list owner-profile-list">
             {profiles.map((item) => (
-              <div key={item.id}>
-                <span className="profile-identity">
-                  <span className="profile-name-line">
+              <details className="profile-card" key={item.id}>
+                <summary>
+                  <span className="profile-identity">
                     <strong>{item.display_name || item.email}</strong>
+                    <small>{item.email}</small>
+                  </span>
+                  <span className={`profile-status ${item.active ? "active" : "inactive"}`}>
+                    {item.id === ownerId
+                      ? "OWNER"
+                      : item.active
+                        ? "АКТИВЕН"
+                        : "СПРЯН"}
+                  </span>
+                </summary>
+                <div className="profile-card-content">
+                  <label className="profile-role-field">
+                    <span>РОЛЯ</span>
+                    <select
+                      value={item.role}
+                      disabled={item.id === ownerId || busyId === item.id}
+                      onChange={(event) =>
+                        void updateAccess(
+                          item,
+                          event.target.value as ProfileRole,
+                          item.active,
+                        )
+                      }
+                    >
+                      <option value="owner" disabled>
+                        Owner
+                      </option>
+                      <option value="admin">Администратор</option>
+                      <option value="editor">Редактор</option>
+                    </select>
+                  </label>
+                  <div className="profile-actions">
                     <button
-                      className="edit-profile-name"
+                      className="edit-profile"
                       type="button"
-                      title="Редактирай името"
-                      aria-label={`Редактирай името на ${item.email}`}
                       disabled={busyId === item.id}
                       onClick={() => void editProfileName(item)}
                     >
-                      ✎
+                      ✎ Редактирай име
                     </button>
-                  </span>
-                  <small>{item.email}</small>
-                </span>
-                <select
-                  value={item.role}
-                  disabled={item.id === ownerId || busyId === item.id}
-                  onChange={(event) =>
-                    void updateAccess(
-                      item,
-                      event.target.value as ProfileRole,
-                      item.active,
-                    )
-                  }
-                >
-                  <option value="owner" disabled>
-                    Owner
-                  </option>
-                  <option value="admin">Администратор</option>
-                  <option value="editor">Редактор</option>
-                </select>
-                {item.id === ownerId ? (
-                  <b className="owner-self-badge">ВАШИЯТ ПРОФИЛ</b>
-                ) : (
-                  <div className="profile-actions">
-                    <button
-                      className={item.active ? "deactivate" : "activate"}
-                      disabled={busyId === item.id}
-                      onClick={() =>
-                        void updateAccess(item, item.role, !item.active)
-                      }
-                    >
-                      {busyId === item.id
-                        ? "…"
-                        : item.active
-                          ? "Спри"
-                          : "Активирай"}
-                    </button>
-                    <button
-                      className="delete-profile"
-                      disabled={busyId === item.id}
-                      onClick={() => void deleteProfile(item)}
-                    >
-                      Изтрий
-                    </button>
-                  </div>
-                )}
-                <details className="training-access-menu existing-training-access">
-                  <summary>
-                    <span>Достъп до тренировки</span>
-                    <small>
-                      {item.id === ownerId
-                        ? "Всички"
-                        : item.training_access == null
-                          ? "Всички"
-                          : `${item.training_access.length} избрани`}
-                    </small>
-                  </summary>
-                  <fieldset className="profile-training-access">
                     {item.id === ownerId ? (
-                      <small>Пълен достъп до всички тренировки</small>
+                      <b className="owner-self-badge">ВАШИЯТ ПРОФИЛ</b>
                     ) : (
-                      <div>
-                        {trainingTitles.map((title) => {
-                          const access = item.training_access;
-                          const checked =
-                            access == null || access.includes(title);
-                          return (
-                            <label key={title}>
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                disabled={busyId === item.id}
-                                onChange={() => {
-                                  const current = access ?? trainingTitles;
-                                  const next = checked
-                                    ? current.filter((value) => value !== title)
-                                    : [...current, title];
-                                  void updateTrainingAccess(item, next);
-                                }}
-                              />
-                              <span>{title}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {item.id !== ownerId && (
-                      <label className="history-permission">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(item.can_view_history)}
+                      <>
+                        <button
+                          className={item.active ? "deactivate" : "activate"}
                           disabled={busyId === item.id}
-                          onChange={(event) =>
-                            void updateHistoryAccess(item, event.target.checked)
+                          onClick={() =>
+                            void updateAccess(item, item.role, !item.active)
                           }
-                        />
-                        <span>
-                          <b>История</b>
-                          <small>
-                            Достъп до действията на всички администратори
-                          </small>
-                        </span>
-                      </label>
+                        >
+                          {busyId === item.id
+                            ? "…"
+                            : item.active
+                              ? "Спри достъпа"
+                              : "Активирай"}
+                        </button>
+                        <button
+                          className="delete-profile"
+                          disabled={busyId === item.id}
+                          onClick={() => void deleteProfile(item)}
+                        >
+                          Изтрий
+                        </button>
+                      </>
                     )}
-                  </fieldset>
-                </details>
-              </div>
+                  </div>
+                  <details className="training-access-menu existing-training-access">
+                    <summary>
+                      <span>Достъп и ограничения</span>
+                      <small>
+                        {item.id === ownerId
+                          ? "Всички"
+                          : item.training_access == null
+                            ? "Всички"
+                            : `${item.training_access.length} тренировки`}
+                      </small>
+                    </summary>
+                    <fieldset className="profile-training-access">
+                      {item.id === ownerId ? (
+                        <small>Пълен достъп до всички тренировки и историята</small>
+                      ) : (
+                        <div>
+                          {trainingTitles.map((title) => {
+                            const access = item.training_access;
+                            const checked = access == null || access.includes(title);
+                            return (
+                              <label key={title}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  disabled={busyId === item.id}
+                                  onChange={() => {
+                                    const current = access ?? trainingTitles;
+                                    const next = checked
+                                      ? current.filter((value) => value !== title)
+                                      : [...current, title];
+                                    void updateTrainingAccess(item, next);
+                                  }}
+                                />
+                                <span>{title}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {item.id !== ownerId && (
+                        <label className="history-permission">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(item.can_view_history)}
+                            disabled={busyId === item.id}
+                            onChange={(event) =>
+                              void updateHistoryAccess(item, event.target.checked)
+                            }
+                          />
+                          <span>
+                            <b>История</b>
+                            <small>Достъп до действията на всички администратори</small>
+                          </span>
+                        </label>
+                      )}
+                    </fieldset>
+                  </details>
+                </div>
+              </details>
             ))}
           </div>
           {invites.length > 0 && (
