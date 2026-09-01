@@ -18,6 +18,8 @@ export type TrainingSession = {
   booking_open_hours: number;
   status: TrainingStatus;
   registration_count: number;
+  standard_registration_count: number;
+  multisport_registration_count: number;
   created_at: string;
   updated_at: string;
 };
@@ -132,16 +134,12 @@ export async function loadSessions() {
   const { data, error } = await supabase
     .from("training_sessions")
     .select(
-      "id,date,start_time,title,location,duration,capacity,booking_open_hours,status,registration_count,standard_available,multisport_available,created_at,updated_at",
+      "id,date,start_time,title,location,duration,capacity,standard_capacity,multisport_capacity,booking_open_hours,status,registration_count,standard_registration_count,multisport_registration_count,standard_available,multisport_available,created_at,updated_at",
     )
     .order("date")
     .order("start_time");
   if (error) throw error;
-  return (data || []).map((item) => ({
-    ...item,
-    standard_capacity: 15,
-    multisport_capacity: 10,
-  })) as TrainingSession[];
+  return (data || []) as TrainingSession[];
 }
 
 export async function loadSiteContent(contentId = "main") {

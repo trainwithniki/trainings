@@ -845,6 +845,11 @@ function FeaturedSession({
         <div>
           <span>
             ЗАЕТИ МЕСТА<strong>{session.registration_count}</strong>
+            <small className="capacity-breakdown">
+              Карти {session.standard_registration_count}/{session.standard_capacity}
+              <b>·</b>
+              MultiSport {session.multisport_registration_count}/{session.multisport_capacity}
+            </small>
           </span>
           <span>
             СВОБОДНИ<strong>{free}</strong>
@@ -1049,6 +1054,11 @@ function SessionCard({
           <div>
             <span>
               ЗАЕТИ<strong>{session.registration_count}</strong>
+              <small className="capacity-breakdown">
+                Карти {session.standard_registration_count}/{session.standard_capacity}
+                <b>·</b>
+                MultiSport {session.multisport_registration_count}/{session.multisport_capacity}
+              </small>
             </span>
             <span>
               СВОБОДНИ<strong>{free}</strong>

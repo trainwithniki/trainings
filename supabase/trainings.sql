@@ -13,6 +13,8 @@ create table if not exists public.training_sessions (
   capacity integer not null default 25 check (capacity between 1 and 500),
   standard_capacity integer not null default 15 check (standard_capacity between 0 and 500),
   multisport_capacity integer not null default 10 check (multisport_capacity between 0 and 500),
+  standard_registration_count integer not null default 0 check (standard_registration_count >= 0),
+  multisport_registration_count integer not null default 0 check (multisport_registration_count >= 0),
   standard_available boolean not null default true,
   multisport_available boolean not null default true,
   booking_open_hours integer not null default 48 check (booking_open_hours between 0 and 720),
@@ -29,6 +31,8 @@ alter table public.training_sessions
 alter table public.training_sessions
   add column if not exists standard_capacity integer not null default 15 check (standard_capacity between 0 and 500),
   add column if not exists multisport_capacity integer not null default 10 check (multisport_capacity between 0 and 500),
+  add column if not exists standard_registration_count integer not null default 0 check (standard_registration_count >= 0),
+  add column if not exists multisport_registration_count integer not null default 0 check (multisport_registration_count >= 0),
   add column if not exists standard_available boolean not null default true,
   add column if not exists multisport_available boolean not null default true;
 
@@ -151,6 +155,8 @@ begin
   target_id := coalesce(new.session_id, old.session_id);
   update public.training_sessions s
   set registration_count = counts.total_count,
+      standard_registration_count = counts.standard_count,
+      multisport_registration_count = counts.multisport_count,
       standard_available = counts.standard_count < s.standard_capacity,
       multisport_available = counts.multisport_count < s.multisport_capacity,
       updated_at = now()
@@ -166,6 +172,8 @@ begin
   if tg_op = 'UPDATE' and old.session_id is distinct from new.session_id then
     update public.training_sessions s
     set registration_count = counts.total_count,
+        standard_registration_count = counts.standard_count,
+        multisport_registration_count = counts.multisport_count,
         standard_available = counts.standard_count < s.standard_capacity,
         multisport_available = counts.multisport_count < s.multisport_capacity,
         updated_at = now()
@@ -210,7 +218,25 @@ create trigger touch_training_session
 before insert or update on public.training_sessions
 for each row execute function public.touch_training_session();
 
--- Recalculate the two public availability flags for existing sessions.
+-- Recalculate the public grouped counts and availability flags for existing sessions.
+update public.training_sessions s
+set registration_count = counts.total_count,
+    standard_registration_count = counts.standard_count,
+    multisport_registration_count = counts.multisport_count,
+    standard_available = counts.standard_count < s.standard_capacity,
+    multisport_available = counts.multisport_count < s.multisport_capacity
+from (
+  select s2.id,
+    count(r.id)::integer total_count,
+    count(r.id) filter (where r.tariff in ('none','card8','card12'))::integer standard_count,
+    count(r.id) filter (where r.tariff = 'multisport')::integer multisport_count
+  from public.training_sessions s2
+  left join public.training_registrations r
+    on r.session_id = s2.id and r.cancelled_at is null
+  group by s2.id
+) counts
+where s.id = counts.id;
+
 update public.training_sessions
 set standard_capacity = standard_capacity;
 
@@ -289,7 +315,7 @@ $$;
 
 revoke all on table public.training_registrations from anon, public;
 revoke select on table public.training_sessions from anon;
-grant select (id,date,start_time,title,location,duration,capacity,booking_open_hours,status,registration_count,standard_available,multisport_available,created_at,updated_at)
+grant select (id,date,start_time,title,location,duration,capacity,standard_capacity,multisport_capacity,booking_open_hours,status,registration_count,standard_registration_count,multisport_registration_count,standard_available,multisport_available,created_at,updated_at)
 on table public.training_sessions to anon;
 grant select on table public.training_sessions to authenticated;
 grant insert, update, delete on table public.training_sessions to authenticated;
