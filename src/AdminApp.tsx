@@ -870,6 +870,7 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [invites, setInvites] = useState<UserInvite[]>([]);
   const [loading, setLoading] = useState(true);
+  const profilesLoaded = useRef(false);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -877,7 +878,7 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
 
   const refresh = useCallback(async () => {
     if (!supabase) return;
-    setLoading(true);
+    if (!profilesLoaded.current) setLoading(true);
     const [profilesResult, invitesResult, templatesResult] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at"),
       supabase
@@ -900,6 +901,7 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
       );
       setError("");
     }
+    profilesLoaded.current = true;
     setLoading(false);
   }, []);
 
