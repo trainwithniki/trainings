@@ -766,6 +766,38 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
     await refresh();
   }
 
+  async function editProfileName(item: Profile) {
+    if (!supabase) return;
+    const nextName = window.prompt(
+      "Редактирайте името на профила:",
+      item.display_name ?? "",
+    );
+    if (nextName === null) return;
+    const cleanName = nextName.trim();
+    if (cleanName.length < 2 || cleanName.length > 120) {
+      setError("Името трябва да бъде между 2 и 120 символа.");
+      return;
+    }
+    setBusyId(item.id);
+    setError("");
+    setNotice("");
+    const { data: updated, error: requestError } = await supabase.rpc(
+      "owner_update_profile_name",
+      { target_user_id: item.id, next_display_name: cleanName },
+    );
+    setBusyId("");
+    if (requestError) {
+      setError(errorMessage(requestError));
+      return;
+    }
+    if (!updated) {
+      setError("Профилът не беше намерен.");
+      return;
+    }
+    setNotice(`Името на ${item.email} е обновено.`);
+    await refresh();
+  }
+
   async function updateAccess(
     item: Profile,
     role: ProfileRole,
@@ -933,8 +965,20 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
           <div className="users-list owner-profile-list">
             {profiles.map((item) => (
               <div key={item.id}>
-                <span>
-                  <strong>{item.display_name || item.email}</strong>
+                <span className="profile-identity">
+                  <span className="profile-name-line">
+                    <strong>{item.display_name || item.email}</strong>
+                    <button
+                      className="edit-profile-name"
+                      type="button"
+                      title="Редактирай името"
+                      aria-label={`Редактирай името на ${item.email}`}
+                      disabled={busyId === item.id}
+                      onClick={() => void editProfileName(item)}
+                    >
+                      ✎
+                    </button>
+                  </span>
                   <small>{item.email}</small>
                 </span>
                 <select

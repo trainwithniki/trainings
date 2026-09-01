@@ -200,6 +200,29 @@ begin
 end;
 $$;
 
+create or replace function public.owner_update_profile_name(
+  target_user_id uuid,
+  next_display_name text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_trainings_owner() then
+    raise exception 'Нямате право да редактирате профили.';
+  end if;
+  if char_length(trim(next_display_name)) not between 2 and 120 then
+    raise exception 'Името трябва да бъде между 2 и 120 символа.';
+  end if;
+  update public.profiles
+  set display_name = trim(next_display_name), updated_at = now()
+  where id = target_user_id;
+  return found;
+end;
+$$;
+
 create or replace function public.admin_set_user_access(
   target_user_id uuid,
   next_role text,
@@ -276,11 +299,13 @@ revoke all on function public.admin_set_user_access(uuid,text,boolean) from publ
 revoke all on function public.owner_delete_training_invite(uuid) from public;
 revoke all on function public.owner_delete_training_profile(uuid) from public;
 revoke all on function public.owner_set_training_access(uuid,text[]) from public;
+revoke all on function public.owner_update_profile_name(uuid,text) from public;
 grant execute on function public.admin_invite_user(text,text,text,text[]) to authenticated;
 grant execute on function public.admin_set_user_access(uuid,text,boolean) to authenticated;
 grant execute on function public.owner_delete_training_invite(uuid) to authenticated;
 grant execute on function public.owner_delete_training_profile(uuid) to authenticated;
 grant execute on function public.owner_set_training_access(uuid,text[]) to authenticated;
+grant execute on function public.owner_update_profile_name(uuid,text) to authenticated;
 
 -- Backup history is written by the protected scheduled job and is visible
 -- only to the single Trainings owner account.
