@@ -41,6 +41,7 @@ export type Profile = {
   role: ProfileRole;
   active: boolean;
   training_access: string[] | null;
+  can_view_history: boolean;
   created_at: string;
 };
 
@@ -50,6 +51,7 @@ export type UserInvite = {
   display_name: string | null;
   role: ProfileRole;
   training_access: string[] | null;
+  can_view_history: boolean;
   accepted_at: string | null;
   created_at: string;
 };

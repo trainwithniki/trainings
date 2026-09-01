@@ -14,7 +14,8 @@ create table if not exists public.profiles (
 );
 
 alter table public.profiles
-  add column if not exists training_access text[];
+  add column if not exists training_access text[],
+  add column if not exists can_view_history boolean not null default false;
 
 create table if not exists public.user_invites (
   id uuid primary key default gen_random_uuid(),
@@ -29,7 +30,12 @@ create table if not exists public.user_invites (
 );
 
 alter table public.user_invites
-  add column if not exists training_access text[];
+  add column if not exists training_access text[],
+  add column if not exists can_view_history boolean not null default false;
+
+update public.profiles
+set can_view_history = true
+where role = 'owner' and lower(email::text) = 'svetlichaa@gmail.com';
 
 alter table public.profiles enable row level security;
 alter table public.user_invites enable row level security;
@@ -95,19 +101,27 @@ begin
   where lower(email::text) = lower(new.email)
   limit 1;
 
-  insert into public.profiles (id, email, display_name, role, active, training_access)
+  insert into public.profiles (id, email, display_name, role, active, training_access, can_view_history)
   values (
     new.id,
     new.email,
     coalesce(pending.display_name, new.raw_user_meta_data->>'display_name'),
     coalesce(pending.role, 'editor'),
     pending.id is not null,
-    pending.training_access
+    pending.training_access,
+    case
+      when pending.role = 'owner' then true
+      else coalesce(pending.can_view_history, false)
+    end
   )
   on conflict (id) do update set
     email = excluded.email,
     display_name = coalesce(excluded.display_name, public.profiles.display_name),
     training_access = coalesce(excluded.training_access, public.profiles.training_access),
+    can_view_history = case
+      when pending.id is not null then excluded.can_view_history
+      else public.profiles.can_view_history
+    end,
     updated_at = now();
 
   if pending.id is not null then
@@ -123,11 +137,13 @@ after insert or update of email on auth.users
 for each row execute function public.handle_new_training_user();
 
 drop function if exists public.admin_invite_user(text,text,text);
+drop function if exists public.admin_invite_user(text,text,text,text[]);
 create or replace function public.admin_invite_user(
   invite_email text,
   invite_name text default null,
   invite_role text default 'editor',
-  invite_training_access text[] default array[]::text[]
+  invite_training_access text[] default array[]::text[],
+  invite_can_view_history boolean default false
 )
 returns uuid
 language plpgsql
@@ -148,13 +164,14 @@ begin
     raise exception 'Изберете поне една тренировка.';
   end if;
 
-  insert into public.user_invites (email, display_name, role, invited_by, accepted_at, training_access)
-  values (lower(trim(invite_email)), nullif(trim(invite_name),''), invite_role, auth.uid(), null, invite_training_access)
+  insert into public.user_invites (email, display_name, role, invited_by, accepted_at, training_access, can_view_history)
+  values (lower(trim(invite_email)), nullif(trim(invite_name),''), invite_role, auth.uid(), null, invite_training_access, invite_can_view_history)
   on conflict (email) do update set
     display_name = excluded.display_name,
     role = excluded.role,
     invited_by = auth.uid(),
     training_access = excluded.training_access,
+    can_view_history = excluded.can_view_history,
     accepted_at = null,
     created_at = now()
   returning id into invite_id;
@@ -165,12 +182,55 @@ begin
       display_name = coalesce(nullif(trim(invite_name),''), display_name),
       role = invite_role,
       training_access = invite_training_access,
+      can_view_history = invite_can_view_history,
       active = true,
       updated_at = now()
     where id = existing_user;
     update public.user_invites set accepted_at = now() where id = invite_id;
   end if;
   return invite_id;
+end;
+$$;
+
+create or replace function public.can_view_training_history()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid()
+      and active = true
+      and role in ('owner','admin','editor')
+      and (can_view_history = true or public.is_trainings_owner())
+  )
+$$;
+
+revoke all on function public.can_view_training_history() from public;
+grant execute on function public.can_view_training_history() to authenticated;
+
+create or replace function public.owner_set_history_access(
+  target_user_id uuid,
+  next_can_view_history boolean
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_trainings_owner() then
+    raise exception 'Нямате право да променяте достъпа до историята.';
+  end if;
+  if target_user_id = auth.uid() then
+    raise exception 'Owner профилът винаги вижда историята.';
+  end if;
+  update public.profiles
+  set can_view_history = next_can_view_history, updated_at = now()
+  where id = target_user_id and role <> 'owner';
+  return found;
 end;
 $$;
 
@@ -294,18 +354,20 @@ begin
 end;
 $$;
 
-revoke all on function public.admin_invite_user(text,text,text,text[]) from public;
+revoke all on function public.admin_invite_user(text,text,text,text[],boolean) from public;
 revoke all on function public.admin_set_user_access(uuid,text,boolean) from public;
 revoke all on function public.owner_delete_training_invite(uuid) from public;
 revoke all on function public.owner_delete_training_profile(uuid) from public;
 revoke all on function public.owner_set_training_access(uuid,text[]) from public;
 revoke all on function public.owner_update_profile_name(uuid,text) from public;
-grant execute on function public.admin_invite_user(text,text,text,text[]) to authenticated;
+revoke all on function public.owner_set_history_access(uuid,boolean) from public;
+grant execute on function public.admin_invite_user(text,text,text,text[],boolean) to authenticated;
 grant execute on function public.admin_set_user_access(uuid,text,boolean) to authenticated;
 grant execute on function public.owner_delete_training_invite(uuid) to authenticated;
 grant execute on function public.owner_delete_training_profile(uuid) to authenticated;
 grant execute on function public.owner_set_training_access(uuid,text[]) to authenticated;
 grant execute on function public.owner_update_profile_name(uuid,text) to authenticated;
+grant execute on function public.owner_set_history_access(uuid,boolean) to authenticated;
 
 -- Backup history is written by the protected scheduled job and is visible
 -- only to the single Trainings owner account.

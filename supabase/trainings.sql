@@ -418,7 +418,7 @@ alter table public.audit_logs enable row level security;
 drop policy if exists "audit logs owner read" on public.audit_logs;
 create policy "audit logs owner read"
 on public.audit_logs for select to authenticated
-using (public.is_trainings_owner());
+using (public.can_view_training_history());
 revoke all on table public.audit_logs from anon, public;
 grant select on table public.audit_logs to authenticated;
 

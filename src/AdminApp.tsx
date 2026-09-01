@@ -178,6 +178,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
   const canManageProfiles =
     profile.role === "owner" &&
     profile.email.toLocaleLowerCase("en") === ownerEmail;
+  const canViewHistory = canManageProfiles || Boolean(profile.can_view_history);
 
   const refresh = useCallback(async () => {
     try {
@@ -326,7 +327,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         </div>
       </header>
       <nav
-        className={`matched-admin-tabs ${canManageProfiles ? "owner-tabs" : ""}`}
+        className={`matched-admin-tabs ${canManageProfiles ? "owner-tabs" : canViewHistory ? "history-tabs" : ""}`}
         aria-label="Раздели"
       >
         <button
@@ -343,6 +344,15 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         >
           Линкове
         </button>
+        {canViewHistory && (
+          <button
+            className={section === "history" ? "active" : ""}
+            type="button"
+            onClick={() => setSection("history")}
+          >
+            История
+          </button>
+        )}
         {canManageProfiles && (
           <>
             <button
@@ -351,13 +361,6 @@ function AdminDashboard({ profile }: { profile: Profile }) {
               onClick={() => setSection("backups")}
             >
               Backups
-            </button>
-            <button
-              className={section === "history" ? "active" : ""}
-              type="button"
-              onClick={() => setSection("history")}
-            >
-              История
             </button>
             <button
               className={section === "profiles" ? "active" : ""}
@@ -485,7 +488,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         <ProfileManagement ownerId={profile.id} />
       )}
       {section === "backups" && canManageProfiles && <BackupPanel />}
-      {section === "history" && canManageProfiles && <AuditHistoryPanel />}
+      {section === "history" && canViewHistory && <AuditHistoryPanel />}
       {section === "links" && <TrainingLinks />}
 
       {editor !== undefined && (
@@ -824,6 +827,7 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
       email = String(form.get("email") ?? "").trim(),
       name = String(form.get("name") ?? "").trim(),
       role = String(form.get("role") ?? "editor") as ProfileRole;
+    const canViewHistory = form.get("can_view_history") === "on";
     const trainingAccess = form
       .getAll("training_access")
       .map(String)
@@ -840,6 +844,7 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
       invite_name: name || null,
       invite_role: role,
       invite_training_access: trainingAccess,
+      invite_can_view_history: canViewHistory,
     });
     setBusyId("");
     if (requestError) {
@@ -872,6 +877,31 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
       return;
     }
     setNotice(`Тренировките за ${item.email} са обновени.`);
+    await refresh();
+  }
+
+  async function updateHistoryAccess(item: Profile, canViewHistory: boolean) {
+    if (!supabase || item.id === ownerId) return;
+    setBusyId(item.id);
+    setError("");
+    setNotice("");
+    const { error: requestError } = await supabase.rpc(
+      "owner_set_history_access",
+      {
+        target_user_id: item.id,
+        next_can_view_history: canViewHistory,
+      },
+    );
+    setBusyId("");
+    if (requestError) {
+      setError(errorMessage(requestError));
+      return;
+    }
+    setNotice(
+      canViewHistory
+        ? `${item.email} вече вижда историята.`
+        : `Достъпът на ${item.email} до историята е премахнат.`,
+    );
     await refresh();
   }
 
@@ -1050,6 +1080,13 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
                 </label>
               ))}
             </div>
+            <label className="history-permission">
+              <input type="checkbox" name="can_view_history" />
+              <span>
+                <b>Вижда историята</b>
+                <small>Достъп до действията на всички администратори</small>
+              </span>
+            </label>
           </fieldset>
         </details>
         <button disabled={busyId === "invite"}>
@@ -1173,6 +1210,24 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
                         })}
                       </div>
                     )}
+                    {item.id !== ownerId && (
+                      <label className="history-permission">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(item.can_view_history)}
+                          disabled={busyId === item.id}
+                          onChange={(event) =>
+                            void updateHistoryAccess(item, event.target.checked)
+                          }
+                        />
+                        <span>
+                          <b>Вижда историята</b>
+                          <small>
+                            Достъп до действията на всички администратори
+                          </small>
+                        </span>
+                      </label>
+                    )}
                   </fieldset>
                 </details>
               </div>
@@ -1196,6 +1251,11 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
                       <small className="invite-training-summary">
                         {(invite.training_access ?? []).join(" · ")}
                       </small>
+                      {invite.can_view_history && (
+                        <small className="invite-history-access">
+                          Вижда историята
+                        </small>
+                      )}
                     </span>
                     <div className="invite-actions">
                       <button
