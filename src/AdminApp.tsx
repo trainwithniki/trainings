@@ -797,7 +797,7 @@ function AuditHistoryPanel() {
 }
 
 function BackupPanel() {
-  const [latest, setLatest] = useState<BackupRun | null>(null);
+  const [backups, setBackups] = useState<BackupRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const driveUrl =
@@ -808,24 +808,20 @@ function BackupPanel() {
       .from("backup_runs")
       .select("id,file_name,status,file_size,created_at")
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
       .then(({ data, error: requestError }) => {
         if (requestError) setError(errorMessage(requestError));
-        else setLatest((data as BackupRun | null) ?? null);
+        else setBackups((data as BackupRun[] | null) ?? []);
         setLoading(false);
       });
   }, []);
-  const moment = latest
-    ? new Intl.DateTimeFormat("bg-BG", {
-        timeZone: "Europe/Sofia",
-        dateStyle: "long",
-        timeStyle: "short",
-      }).format(new Date(latest.created_at))
-    : "";
-  const size = latest?.file_size
-    ? `${(latest.file_size / 1024 / 1024).toFixed(2)} MB`
-    : "";
+  const formatMoment = (value: string) =>
+    new Intl.DateTimeFormat("bg-BG", {
+      timeZone: "Europe/Sofia",
+      dateStyle: "long",
+      timeStyle: "short",
+    }).format(new Date(value));
+  const formatSize = (value: number | null) =>
+    value ? `${(value / 1024 / 1024).toFixed(2)} MB` : "";
   return (
     <section className="backup-panel">
       <div className="admin-section-heading">
@@ -840,19 +836,26 @@ function BackupPanel() {
         Google Drive.
       </p>
       {loading ? (
-        <div className="admin-data-loading">Проверка на последния backup…</div>
+        <div className="admin-data-loading">Зареждане на backup архивите…</div>
       ) : error ? (
         <div className="admin-alert error">{error}</div>
-      ) : latest ? (
-        <article className={`backup-status-card ${latest.status}`}>
-          <div className="backup-status-icon">✓</div>
-          <div>
-            <span>ПОСЛЕДЕН УСПЕШЕН BACKUP</span>
-            <strong>{moment}</strong>
-            <small>{latest.file_name}</small>
-          </div>
-          {size && <b>{size}</b>}
-        </article>
+      ) : backups.length > 0 ? (
+        <div className="backup-list">
+          {backups.map((backup, index) => {
+            const size = formatSize(backup.file_size);
+            return (
+              <article className={`backup-status-card ${backup.status}`} key={backup.id}>
+                <div className="backup-status-icon">✓</div>
+                <div>
+                  <span>{index === 0 ? "ПОСЛЕДЕН УСПЕШЕН BACKUP" : "УСПЕШЕН BACKUP"}</span>
+                  <strong>{formatMoment(backup.created_at)}</strong>
+                  <small>{backup.file_name}</small>
+                </div>
+                {size && <b>{size}</b>}
+              </article>
+            );
+          })}
+        </div>
       ) : (
         <div className="backup-empty-state">
           <strong>Все още няма завършен backup</strong>
@@ -864,6 +867,15 @@ function BackupPanel() {
       </a>
     </section>
   );
+}
+
+function profileSummary(item: Profile, ownerId: string) {
+  if (item.id === ownerId) return "Owner · Всички тренировки · История";
+  const role = item.role === "admin" ? "Администратор" : "Редактор";
+  const trainings = item.training_access?.length
+    ? item.training_access.join(", ")
+    : "Всички тренировки";
+  return `${role} · ${trainings}${item.can_view_history ? " · История" : ""}`;
 }
 
 function ProfileManagement({ ownerId }: { ownerId: string }) {
@@ -1205,6 +1217,9 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
                   <span className="profile-identity">
                     <strong>{item.display_name || item.email}</strong>
                     <small>{item.email}</small>
+                    <small className="profile-access-summary" title={profileSummary(item, ownerId)}>
+                      {profileSummary(item, ownerId)}
+                    </small>
                   </span>
                   <span className={`profile-status ${item.active ? "active" : "inactive"}`}>
                     {item.id === ownerId
