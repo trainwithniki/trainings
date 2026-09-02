@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CSSProperties,
   FormEvent,
   useCallback,
   useEffect,
@@ -694,6 +695,13 @@ function auditValue(field: string, value: unknown) {
   return text;
 }
 
+function auditActorHue(identity: string) {
+  let hash = 0;
+  for (const character of identity.toLocaleLowerCase("en"))
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  return hash % 360;
+}
+
 function AuditHistoryPanel() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -751,7 +759,15 @@ function AuditHistoryPanel() {
             const label = log.details?.label?.trim();
             const changes = Object.entries(log.details?.changes ?? {});
             return (
-              <article key={log.id} className={`audit-item ${log.action.toLowerCase()}`}>
+              <article
+                key={log.id}
+                className={`audit-item ${log.action.toLowerCase()}`}
+                style={
+                  {
+                    "--actor-hue": auditActorHue(log.actor_email),
+                  } as CSSProperties
+                }
+              >
                 <time dateTime={log.created_at}>{moment}</time>
                 <div>
                   <strong>{log.actor_name || log.actor_email}</strong>
