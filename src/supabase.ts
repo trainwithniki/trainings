@@ -42,6 +42,7 @@ export type Profile = {
   active: boolean;
   training_access: string[] | null;
   can_view_history: boolean;
+  audit_color: string | null;
   created_at: string;
 };
 

@@ -432,6 +432,7 @@ create table if not exists public.audit_logs (
   actor_id uuid references public.profiles(id) on delete set null,
   actor_email text not null,
   actor_name text,
+  actor_color text,
   action text not null check (action in ('INSERT','UPDATE','DELETE')),
   entity_type text not null,
   entity_id text,
@@ -440,6 +441,8 @@ create table if not exists public.audit_logs (
 );
 create index if not exists audit_logs_created_at_idx
   on public.audit_logs (created_at desc);
+alter table public.audit_logs
+  add column if not exists actor_color text;
 alter table public.audit_logs enable row level security;
 drop policy if exists "audit logs owner read" on public.audit_logs;
 create policy "audit logs owner read"
@@ -486,7 +489,7 @@ begin
     when 'training_registrations' then array['name','phone','tariff','booked_by','cancelled_at']
     when 'training_templates' then array['title','weekday','start_time','location','duration','capacity','standard_capacity','multisport_capacity','booking_open_hours']
     when 'site_content' then array['hero_eyebrow','hero_title','hero_description','hero_tags']
-    when 'profiles' then array['display_name','email','role','active','training_access','can_view_history']
+    when 'profiles' then array['display_name','email','role','active','training_access','can_view_history','audit_color']
     when 'user_invites' then array['display_name','email','role','training_access','can_view_history','accepted_at']
     else array[]::text[]
   end;
@@ -508,9 +511,9 @@ begin
     else null
   end;
   insert into public.audit_logs
-    (actor_id,actor_email,actor_name,action,entity_type,entity_id,details)
+    (actor_id,actor_email,actor_name,actor_color,action,entity_type,entity_id,details)
   values
-    (actor.id,actor.email::text,actor.display_name,tg_op,tg_table_name,row_data->>'id',
+    (actor.id,actor.email::text,actor.display_name,actor.audit_color,tg_op,tg_table_name,row_data->>'id',
      jsonb_build_object(
        'label',item_label,
        'date',row_data->>'date',
@@ -521,6 +524,35 @@ begin
 end;
 $$;
 revoke all on function public.record_admin_audit() from public;
+
+create or replace function public.owner_set_audit_color(
+  target_user_id uuid,
+  next_audit_color text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_trainings_owner() then
+    raise exception 'Нямате право да променяте цветовете в историята.';
+  end if;
+  if next_audit_color !~ '^#[0-9A-Fa-f]{6}$' then
+    raise exception 'Невалиден цвят.';
+  end if;
+  update public.profiles
+  set audit_color = lower(next_audit_color), updated_at = now()
+  where id = target_user_id;
+  if not found then return false; end if;
+  update public.audit_logs
+  set actor_color = lower(next_audit_color)
+  where actor_id = target_user_id;
+  return true;
+end;
+$$;
+revoke all on function public.owner_set_audit_color(uuid,text) from public;
+grant execute on function public.owner_set_audit_color(uuid,text) to authenticated;
 
 drop trigger if exists audit_training_sessions on public.training_sessions;
 create trigger audit_training_sessions after insert or update or delete on public.training_sessions

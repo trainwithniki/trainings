@@ -15,7 +15,8 @@ create table if not exists public.profiles (
 
 alter table public.profiles
   add column if not exists training_access text[],
-  add column if not exists can_view_history boolean not null default false;
+  add column if not exists can_view_history boolean not null default false,
+  add column if not exists audit_color text check (audit_color is null or audit_color ~ '^#[0-9A-Fa-f]{6}$');
 
 create table if not exists public.user_invites (
   id uuid primary key default gen_random_uuid(),

@@ -612,6 +612,7 @@ type AuditLog = {
   id: number;
   actor_email: string;
   actor_name: string | null;
+  actor_color: string | null;
   action: "INSERT" | "UPDATE" | "DELETE";
   entity_type: string;
   entity_id: string | null;
@@ -644,6 +645,7 @@ const auditFieldLabels: Record<string, string> = {
   active: "Активен профил",
   training_access: "Разрешени тренировки",
   can_view_history: "Достъп до историята",
+  audit_color: "Цвят в историята",
   title: "Име на тренировката",
   date: "Дата",
   start_time: "Час",
@@ -695,39 +697,25 @@ function auditValue(field: string, value: unknown) {
   return text;
 }
 
-const auditActorPalette = [
-  { color: "#147a4c", background: "#edf9f2" },
-  { color: "#2468b4", background: "#eef5ff" },
-  { color: "#7b3db0", background: "#f7effc" },
-  { color: "#c05a18", background: "#fff4e9" },
-  { color: "#b83266", background: "#fff0f6" },
-  { color: "#087f82", background: "#eafafa" },
-  { color: "#9a7210", background: "#fff9e6" },
-  { color: "#5a60bd", background: "#f1f1ff" },
-];
+const auditActorPalette = ["#147a4c", "#2468b4", "#7b3db0", "#c05a18", "#b83266", "#087f82", "#9a7210", "#5a60bd"];
+function fallbackAuditColor(identity: string) {
+  let hash = 0;
+  for (const character of identity.toLocaleLowerCase("en"))
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  return auditActorPalette[hash % auditActorPalette.length];
+}
 
 function AuditHistoryPanel() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const actorStyles = useMemo(() => {
-    const identities = Array.from(
-      new Set(logs.map((log) => log.actor_email.toLocaleLowerCase("en"))),
-    ).sort();
-    return new Map(
-      identities.map((identity, index) => [
-        identity,
-        auditActorPalette[index % auditActorPalette.length],
-      ]),
-    );
-  }, [logs]);
   const loadHistory = useCallback(async () => {
     if (!supabase) return;
     setLoading(true);
     const { data, error: requestError } = await supabase
       .from("audit_logs")
       .select(
-        "id,actor_email,actor_name,action,entity_type,entity_id,details,created_at",
+        "id,actor_email,actor_name,actor_color,action,entity_type,entity_id,details,created_at",
       )
       .order("created_at", { ascending: false })
       .limit(300);
@@ -779,12 +767,8 @@ function AuditHistoryPanel() {
                 className={`audit-item ${log.action.toLowerCase()}`}
                 style={
                   {
-                    "--actor-color": actorStyles.get(
-                      log.actor_email.toLocaleLowerCase("en"),
-                    )?.color,
-                    "--actor-background": actorStyles.get(
-                      log.actor_email.toLocaleLowerCase("en"),
-                    )?.background,
+                    "--actor-color":
+                      log.actor_color ?? fallbackAuditColor(log.actor_email),
                   } as CSSProperties
                 }
               >
@@ -1040,6 +1024,28 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
         ? `${item.email} вече вижда историята.`
         : `Достъпът на ${item.email} до историята е премахнат.`,
     );
+    await refresh();
+  }
+
+  async function updateAuditColor(item: Profile, nextColor: string) {
+    if (!supabase) return;
+    setBusyId(item.id);
+    setError("");
+    setNotice("");
+    const { data: updated, error: requestError } = await supabase.rpc(
+      "owner_set_audit_color",
+      { target_user_id: item.id, next_audit_color: nextColor },
+    );
+    setBusyId("");
+    if (requestError) {
+      setError(errorMessage(requestError));
+      return;
+    }
+    if (!updated) {
+      setError("Профилът не беше намерен.");
+      return;
+    }
+    setNotice(`Цветът на ${item.email} е обновен.`);
     await refresh();
   }
 
@@ -1322,6 +1328,18 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
                       </>
                     )}
                   </div>
+                  <label className="profile-audit-color">
+                    <span>ЦВЯТ В ИСТОРИЯТА</span>
+                    <input
+                      type="color"
+                      value={item.audit_color ?? fallbackAuditColor(item.email)}
+                      disabled={busyId === item.id}
+                      onChange={(event) =>
+                        void updateAuditColor(item, event.target.value)
+                      }
+                    />
+                    <b>Избери цвят</b>
+                  </label>
                   <details className="training-access-menu existing-training-access">
                     <summary>
                       <span>Достъп и ограничения</span>
