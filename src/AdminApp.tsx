@@ -695,17 +695,32 @@ function auditValue(field: string, value: unknown) {
   return text;
 }
 
-function auditActorHue(identity: string) {
-  let hash = 0;
-  for (const character of identity.toLocaleLowerCase("en"))
-    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  return hash % 360;
-}
+const auditActorPalette = [
+  { color: "#147a4c", background: "#edf9f2" },
+  { color: "#2468b4", background: "#eef5ff" },
+  { color: "#7b3db0", background: "#f7effc" },
+  { color: "#c05a18", background: "#fff4e9" },
+  { color: "#b83266", background: "#fff0f6" },
+  { color: "#087f82", background: "#eafafa" },
+  { color: "#9a7210", background: "#fff9e6" },
+  { color: "#5a60bd", background: "#f1f1ff" },
+];
 
 function AuditHistoryPanel() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const actorStyles = useMemo(() => {
+    const identities = Array.from(
+      new Set(logs.map((log) => log.actor_email.toLocaleLowerCase("en"))),
+    ).sort();
+    return new Map(
+      identities.map((identity, index) => [
+        identity,
+        auditActorPalette[index % auditActorPalette.length],
+      ]),
+    );
+  }, [logs]);
   const loadHistory = useCallback(async () => {
     if (!supabase) return;
     setLoading(true);
@@ -764,7 +779,12 @@ function AuditHistoryPanel() {
                 className={`audit-item ${log.action.toLowerCase()}`}
                 style={
                   {
-                    "--actor-hue": auditActorHue(log.actor_email),
+                    "--actor-color": actorStyles.get(
+                      log.actor_email.toLocaleLowerCase("en"),
+                    )?.color,
+                    "--actor-background": actorStyles.get(
+                      log.actor_email.toLocaleLowerCase("en"),
+                    )?.background,
                   } as CSSProperties
                 }
               >
