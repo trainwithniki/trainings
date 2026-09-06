@@ -893,7 +893,7 @@ function TrainingIcon({
       aria-hidden="true"
     >
       <img
-        src={`${baseUrl}training-icons/${icon}?v=posters-20260906`}
+        src={`${baseUrl}training-icons/${icon}?v=posters-20260906-2`}
         alt=""
         loading={compact ? "lazy" : "eager"}
       />
@@ -916,15 +916,23 @@ function TrainingPageHero({
   );
   return (
     <section
-      className={`training-page-hero ${["pilates", "zumba", "tae-bo", "step-aerobics"].includes(page.slug) ? "poster-training-hero" : ""}`}
+      className={`training-page-hero ${["pilates", "zumba", "tae-bo", "step-aerobics", "kids-conditioning"].includes(page.slug) ? "poster-training-hero" : ""}`}
       data-training={page.slug}
     >
       <div className="training-page-photo">
-        <img
-          src={`${baseUrl}training-heroes/${page.hero}?v=posters-20260906`}
-          alt={`${page.title} във Fit Body Center`}
-          fetchPriority="high"
-        />
+        <picture>
+          {page.slug === "kids-conditioning" && (
+            <source
+              media="(max-width: 560px)"
+              srcSet={`${baseUrl}training-icons/${page.icon}?v=posters-20260906-2`}
+            />
+          )}
+          <img
+            src={`${baseUrl}training-heroes/${page.hero}?v=posters-20260906-2`}
+            alt={`${page.title} във Fit Body Center`}
+            fetchPriority="high"
+          />
+        </picture>
       </div>
       <a href={`${baseUrl}trainings.html`}>← Всички тренировки</a>
       <div className="training-page-copy">
@@ -969,7 +977,7 @@ function TrainingDirectory({ current }: { current?: TrainingPage }) {
           >
             <div>
               <img
-                src={`${baseUrl}training-icons/${page.icon}?v=posters-20260906`}
+                src={`${baseUrl}training-icons/${page.icon}?v=posters-20260906-2`}
                 alt=""
                 loading="lazy"
               />
