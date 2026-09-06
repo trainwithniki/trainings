@@ -674,6 +674,22 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
 
 /* Keep artwork within the existing admin link thumbnails, too. */
 .training-link-art img{width:calc(100% - 4px);height:calc(100% - 4px);min-width:0;min-height:0;object-fit:contain;object-position:center;transform:none}
+/* Preserve the complete supplied posters and their original names, without duplicate copy. */
+.poster-training-hero .training-page-copy{display:none}
+.training-icon:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"]) img{width:100%;height:100%;border-radius:19px;object-fit:contain}
+.training-links-list article:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"]) .training-link-art img{width:100%;height:100%;border-radius:11px;object-fit:contain}
+.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"]){display:block;background:#050505}
+.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"])>div{width:100%;height:100%}
+.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"]) img{width:100%;height:100%;object-fit:contain}
+.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"])>span{display:none}
+@media(min-width:561px){.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"]){height:108px;aspect-ratio:auto}}
+@media(max-width:560px){
+  .poster-training-hero{display:flex;min-height:0;padding:0;overflow:hidden}
+  .poster-training-hero .training-page-photo{position:relative;width:100%;height:auto;aspect-ratio:9/16;flex:0 0 auto}
+  .poster-training-hero .training-page-photo img{object-fit:cover;transform:none}
+  .poster-training-hero:after{display:none}
+  .training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"])>div{padding:0}
+}
 /* Make the booking timestamp easier to read in the attendee list. */
 .attendee-booked-at b{font-size:10px}
 .attendee-booked-at small{font-size:9px}

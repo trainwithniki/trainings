@@ -885,9 +885,11 @@ function TrainingIcon({
   compact?: boolean;
 }) {
   const icon = trainingIconForTitle(title);
+  const trainingSlug = trainingPageForTitle(title)?.slug;
   return (
     <div
       className={`training-icon ${compact ? "compact" : ""}`}
+      data-training={trainingSlug}
       aria-hidden="true"
     >
       <img
@@ -913,7 +915,10 @@ function TrainingPageHero({
     window.localStorage.getItem(`training-body-scale-${page.slug}`) ?? 1,
   );
   return (
-    <section className="training-page-hero" data-training={page.slug}>
+    <section
+      className={`training-page-hero ${["pilates", "zumba", "tae-bo", "step-aerobics"].includes(page.slug) ? "poster-training-hero" : ""}`}
+      data-training={page.slug}
+    >
       <div className="training-page-photo">
         <img
           src={`${baseUrl}training-heroes/${page.hero}?v=posters-20260906`}

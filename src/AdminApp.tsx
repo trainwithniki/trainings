@@ -575,7 +575,7 @@ function TrainingLinks() {
         {trainingPages.map((page) => {
           const link = publicLink(page);
           return (
-            <article key={page.slug}>
+            <article key={page.slug} data-training={page.slug}>
               <div className="training-link-art">
                 <img src={`${baseUrl}training-icons/${page.icon}?v=posters-20260906`} alt="" />
               </div>
