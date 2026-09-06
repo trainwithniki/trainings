@@ -44,6 +44,18 @@ const bookingKey = "fit-body-center-live-bookings";
 const baseUrl = import.meta.env.BASE_URL;
 const activeTrainingPage = trainingPageFromPath(window.location.pathname);
 
+function fallbackSiteContent(page?: TrainingPage): SiteContent {
+  return page
+    ? {
+        id: page.slug,
+        hero_eyebrow: "FIT BODY CENTER",
+        hero_title: page.title,
+        hero_description: page.description,
+        hero_tags: "Избери дата и запази своето място.",
+      }
+    : defaultSiteContent;
+}
+
 function stateOf(session: TrainingSession, now = Date.now()): SessionState {
   return isCompleted(session, now)
     ? "completed"
@@ -98,8 +110,9 @@ export default function PublicApp() {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const [clock, setClock] = useState(Date.now());
-  const [siteContent, setSiteContent] =
-    useState<SiteContent>(defaultSiteContent);
+  const [siteContent, setSiteContent] = useState<SiteContent>(() =>
+    fallbackSiteContent(activeTrainingPage),
+  );
 
   const refresh = useCallback(async () => {
     try {
@@ -121,13 +134,7 @@ export default function PublicApp() {
       setAllSessions(ordered);
       setSiteContent(
         activeTrainingPage && content.id === "main"
-          ? {
-              id: activeTrainingPage.slug,
-              hero_eyebrow: "FIT BODY CENTER",
-              hero_title: activeTrainingPage.title,
-              hero_description: activeTrainingPage.description,
-              hero_tags: "Избери дата и запази своето място.",
-            }
+          ? fallbackSiteContent(activeTrainingPage)
           : content,
       );
       setLoadError("");
@@ -884,7 +891,7 @@ function TrainingIcon({
       aria-hidden="true"
     >
       <img
-        src={`${baseUrl}training-icons/${icon}?v=realistic-20260906`}
+        src={`${baseUrl}training-icons/${icon}?v=posters-20260906`}
         alt=""
         loading={compact ? "lazy" : "eager"}
       />
@@ -909,7 +916,7 @@ function TrainingPageHero({
     <section className="training-page-hero" data-training={page.slug}>
       <div className="training-page-photo">
         <img
-          src={`${baseUrl}training-heroes/${page.hero}`}
+          src={`${baseUrl}training-heroes/${page.hero}?v=posters-20260906`}
           alt={`${page.title} във Fit Body Center`}
           fetchPriority="high"
         />
@@ -957,7 +964,7 @@ function TrainingDirectory({ current }: { current?: TrainingPage }) {
           >
             <div>
               <img
-                src={`${baseUrl}training-icons/${page.icon}?v=realistic-20260906`}
+                src={`${baseUrl}training-icons/${page.icon}?v=posters-20260906`}
                 alt=""
                 loading="lazy"
               />
