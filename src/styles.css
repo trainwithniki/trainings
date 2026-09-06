@@ -677,20 +677,20 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
 /* Preserve the complete supplied posters and their original names, without duplicate copy. */
 .poster-training-hero .training-page-copy{display:none}
 .poster-training-hero .training-page-photo picture{display:contents}
-.training-icon:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"]) img{width:100%;height:100%;border-radius:19px;object-fit:contain}
-.training-links-list article:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"]) .training-link-art img{width:100%;height:100%;border-radius:11px;object-fit:contain}
-.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"]){display:block;background:#050505}
-.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"])>div{width:100%;height:100%}
-.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"]) img{width:100%;height:100%;object-fit:contain}
-.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"])>span{display:none}
-@media(min-width:561px){.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"]){height:108px;aspect-ratio:auto}}
+.training-icon:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"],[data-training="body-training"]) img{width:100%;height:100%;border-radius:19px;object-fit:contain}
+.training-links-list article:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"],[data-training="body-training"]) .training-link-art img{width:100%;height:100%;border-radius:11px;object-fit:contain}
+.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"],[data-training="body-training"]){display:block;background:#050505}
+.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"],[data-training="body-training"])>div{width:100%;height:100%}
+.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"],[data-training="body-training"]) img{width:100%;height:100%;object-fit:contain}
+.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"],[data-training="body-training"])>span{display:none}
+@media(min-width:561px){.training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"],[data-training="body-training"]){height:108px;aspect-ratio:auto}}
 @media(max-width:560px){
   .poster-training-hero{display:flex;min-height:0;padding:0;overflow:hidden}
   .poster-training-hero .training-page-photo{position:relative;width:100%;height:auto;aspect-ratio:9/16;flex:0 0 auto}
-  .poster-training-hero[data-training="kids-conditioning"] .training-page-photo{aspect-ratio:1}
+  .poster-training-hero:is([data-training="pilates"],[data-training="tae-bo"],[data-training="kids-conditioning"],[data-training="body-training"]) .training-page-photo{aspect-ratio:1}
   .poster-training-hero[data-training] .training-page-photo img{object-fit:cover;transform:none}
   .poster-training-hero:after{display:none}
-  .training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"])>div{padding:0}
+  .training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"],[data-training="body-training"])>div{padding:0}
 }
 /* Make the booking timestamp easier to read in the attendee list. */
 .attendee-booked-at b{font-size:10px}
