@@ -2830,13 +2830,13 @@ function MissingConfiguration() {
 }
 function AdminLoading() {
   return (
-    <main className="login-shell">
-      <div className="admin-loading">
-        <strong className="fit-loading-mark" aria-label="FIT">
-          <i>F</i>
-          <i>I</i>
-          <i>T</i>
-        </strong>
+    <main className="login-shell fit-loading-shell">
+      <div className="admin-loading" role="status" aria-live="polite">
+        <img
+          className="fit-loading-logo"
+          src={`${baseUrl}fit-body-loading-logo.webp?v=20260906`}
+          alt="Fit Body Center"
+        />
         <span>Зареждане</span>
       </div>
     </main>

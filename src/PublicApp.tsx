@@ -385,6 +385,8 @@ export default function PublicApp() {
       : `${baseUrl}trainings.html?session=${encodeURIComponent(session.id)}`;
   }
 
+  if (loading) return <PublicLoading />;
+
   return (
     <main className="site-shell fbc-public live-public">
       {activeTrainingPage ? (
@@ -415,11 +417,6 @@ export default function PublicApp() {
         <section className="public-empty error">
           <strong>Тренировките не могат да се заредят.</strong>
           <p>{loadError}</p>
-        </section>
-      )}
-      {loading && (
-        <section className="public-empty">
-          <strong>Зареждане…</strong>
         </section>
       )}
       {!loading && !selected && (
@@ -773,6 +770,21 @@ export default function PublicApp() {
           }}
         />
       )}
+    </main>
+  );
+}
+
+function PublicLoading() {
+  return (
+    <main className="fit-loading-shell">
+      <div className="admin-loading" role="status" aria-live="polite">
+        <img
+          className="fit-loading-logo"
+          src={`${baseUrl}fit-body-loading-logo.webp?v=20260906`}
+          alt="Fit Body Center"
+        />
+        <span>Зареждане</span>
+      </div>
     </main>
   );
 }
