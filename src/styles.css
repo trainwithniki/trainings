@@ -687,7 +687,7 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
 @media(max-width:560px){
   .poster-training-hero{display:flex;min-height:0;padding:0;overflow:hidden}
   .poster-training-hero .training-page-photo{position:relative;width:100%;height:auto;aspect-ratio:9/16;flex:0 0 auto}
-  .poster-training-hero:is([data-training="pilates"],[data-training="tae-bo"],[data-training="kids-conditioning"],[data-training="body-training"]) .training-page-photo{aspect-ratio:1}
+  .poster-training-hero .training-page-photo{aspect-ratio:1}
   .poster-training-hero[data-training] .training-page-photo img{object-fit:cover;transform:none}
   .poster-training-hero:after{display:none}
   .training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"],[data-training="body-training"])>div{padding:0}
