@@ -884,7 +884,7 @@ function TrainingIcon({
       aria-hidden="true"
     >
       <img
-        src={`${baseUrl}training-icons/${icon}`}
+        src={`${baseUrl}training-icons/${icon}?v=realistic-20260906`}
         alt=""
         loading={compact ? "lazy" : "eager"}
       />
@@ -953,10 +953,11 @@ function TrainingDirectory({ current }: { current?: TrainingPage }) {
             target={page.externalUrl ? "_blank" : undefined}
             rel={page.externalUrl ? "noreferrer" : undefined}
             key={page.slug}
+            data-training={page.slug}
           >
             <div>
               <img
-                src={`${baseUrl}training-icons/${page.icon}`}
+                src={`${baseUrl}training-icons/${page.icon}?v=realistic-20260906`}
                 alt=""
                 loading="lazy"
               />
