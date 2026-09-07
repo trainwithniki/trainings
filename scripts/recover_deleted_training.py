@@ -155,7 +155,22 @@ def main():
                 ),
             )
 
-            backed_up = [row for row in backup_registrations if row.get("session_id") == session_id]
+            cursor.execute(
+                """
+                select entity_id
+                from public.audit_logs
+                where action = 'DELETE'
+                  and entity_type = 'training_registrations'
+                  and created_at < %s
+                """,
+                (deleted_at,),
+            )
+            deleted_before_session = {row[0] for row in cursor.fetchall()}
+            backed_up = [
+                row for row in backup_registrations
+                if row.get("session_id") == session_id
+                and row.get("id") not in deleted_before_session
+            ]
             registration_columns = (
                 "id", "session_id", "name", "phone", "tariff", "booked_by",
                 "cancellation_token", "cancelled_at", "created_at",
@@ -163,7 +178,11 @@ def main():
             for row in backed_up:
                 insert_row(cursor, "training_registrations", row, registration_columns)
 
-            restored_phones = {normalized_phone(row.get("phone")) for row in backed_up}
+            restored_phones = {
+                normalized_phone(row.get("phone"))
+                for row in backed_up
+                if row.get("cancelled_at") is None
+            }
             cursor.execute(
                 """
                 select entity_id, details
