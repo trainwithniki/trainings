@@ -32,7 +32,7 @@ def decode_copy_value(value: str):
 
 
 def read_copy_table(path: Path, table: str):
-    header = re.compile(rf'^COPY public\."?{re.escape(table)}"? \((.+)\) FROM stdin;$')
+    header = re.compile(r"^COPY\s+(.+?)\s*\((.+)\)\s+FROM\s+stdin;$", re.IGNORECASE)
     rows = []
     columns = None
     with path.open("r", encoding="utf-8") as dump:
@@ -41,7 +41,9 @@ def read_copy_table(path: Path, table: str):
             if columns is None:
                 match = header.match(line)
                 if match:
-                    columns = [column.strip().strip('"') for column in match.group(1).split(",")]
+                    relation = match.group(1).replace('"', "").split(".")[-1].strip()
+                    if relation.lower() == table.lower():
+                        columns = [column.strip().strip('"') for column in match.group(2).split(",")]
                 continue
             if line == r"\.":
                 break
