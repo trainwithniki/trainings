@@ -36,6 +36,7 @@ import { trainingPages } from "./training-pages";
 
 const baseUrl = import.meta.env.BASE_URL;
 const ownerEmail = "svetlichaa@gmail.com";
+const adminSplashKey = "fit-body-admin-splash-seen";
 type QuickTemplate = {
   id?: string;
   title: string;
@@ -108,14 +109,28 @@ const shortWeekdays = ["", "Пон", "Вто", "Сря", "Чет", "Пет", "С
 
 export default function AdminApp() {
   const [loading, setLoading] = useState(true);
-  const [splashComplete, setSplashComplete] = useState(false);
+  const [splashComplete, setSplashComplete] = useState(() => {
+    try {
+      return window.sessionStorage.getItem(adminSplashKey) === "1";
+    } catch {
+      return false;
+    }
+  });
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setSplashComplete(true), 2000);
+    if (splashComplete) return;
+    const timer = window.setTimeout(() => {
+      try {
+        window.sessionStorage.setItem(adminSplashKey, "1");
+      } catch {
+        // The splash still completes when browser storage is unavailable.
+      }
+      setSplashComplete(true);
+    }, 2000);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [splashComplete]);
 
   useEffect(() => {
     if (!supabase) {
@@ -153,7 +168,8 @@ export default function AdminApp() {
   }, []);
 
   if (!supabaseConfigured) return <MissingConfiguration />;
-  if (loading || !splashComplete) return <AdminLoading />;
+  if (!splashComplete) return <AdminLoading />;
+  if (loading) return <AdminSessionLoading />;
   if (!user) return <LoginPanel />;
   if (
     !profile ||
@@ -2847,6 +2863,9 @@ function AdminLoading() {
       </div>
     </main>
   );
+}
+function AdminSessionLoading() {
+  return <main className="login-shell admin-session-loading">Зареждане…</main>;
 }
 function AccessDenied({ email }: { email: string }) {
   return (

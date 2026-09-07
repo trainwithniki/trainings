@@ -589,6 +589,7 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
 @keyframes fit-loading-logo-glow{from{transform:scale(.985);filter:saturate(1.04) brightness(.94);box-shadow:0 0 12px #eeff128f,0 0 34px #e5ff0057,0 0 70px #caff002e}to{transform:scale(1.015);filter:saturate(1.14) brightness(1.08);box-shadow:0 0 20px #f5ff39c2,0 0 58px #e5ff0085,0 0 105px #caff004f}}
 @keyframes fit-loading-aura{from{opacity:.58;transform:scale(.92)}to{opacity:1;transform:scale(1.08)}}
 @media(prefers-reduced-motion:reduce){.fit-loading-logo,.admin-loading:before{animation:none}}
+.admin-session-loading{color:#b9c1c6;font-size:13px;font-weight:850;letter-spacing:.06em}
 .attendee-inline-details .attendee-identity{min-width:0;width:auto}
 .attendee-inline-details .tariff-badge,
 .attendee-inline-details .tariff-text{grid-column:2;width:56px;min-width:56px;justify-self:start}

@@ -42,6 +42,7 @@ type PendingBooking = {
 };
 const bookingKey = "fit-body-center-live-bookings";
 const baseUrl = import.meta.env.BASE_URL;
+const publicSplashKey = "fit-body-public-splash-seen";
 const activeTrainingPage = trainingPageFromPath(window.location.pathname);
 
 function fallbackSiteContent(page?: TrainingPage): SiteContent {
@@ -96,7 +97,13 @@ export default function PublicApp() {
   const [allSessions, setAllSessions] = useState<TrainingSession[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(true);
-  const [splashComplete, setSplashComplete] = useState(false);
+  const [splashComplete, setSplashComplete] = useState(() => {
+    try {
+      return window.sessionStorage.getItem(publicSplashKey) === "1";
+    } catch {
+      return false;
+    }
+  });
   const [loadError, setLoadError] = useState("");
   const [modal, setModal] = useState<"booking" | "friend" | null>(null);
   const [pendingBooking, setPendingBooking] = useState<PendingBooking | null>(
@@ -116,9 +123,17 @@ export default function PublicApp() {
   );
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setSplashComplete(true), 2000);
+    if (splashComplete) return;
+    const timer = window.setTimeout(() => {
+      try {
+        window.sessionStorage.setItem(publicSplashKey, "1");
+      } catch {
+        // The splash still completes when browser storage is unavailable.
+      }
+      setSplashComplete(true);
+    }, 2000);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [splashComplete]);
 
   const refresh = useCallback(async () => {
     try {
@@ -391,7 +406,7 @@ export default function PublicApp() {
       : `${baseUrl}trainings.html?session=${encodeURIComponent(session.id)}`;
   }
 
-  if (loading || !splashComplete) return <PublicLoading />;
+  if (!splashComplete) return <PublicLoading />;
 
   return (
     <main className="site-shell fbc-public live-public">
