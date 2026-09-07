@@ -572,3 +572,151 @@ for each row execute function public.record_admin_audit();
 drop trigger if exists audit_user_invites on public.user_invites;
 create trigger audit_user_invites after insert or update or delete on public.user_invites
 for each row execute function public.record_admin_audit();
+
+-- Owner-only recycle bin. Full deleted rows stay server-side so a restored
+-- registration keeps its original cancellation token.
+create table if not exists public.deleted_training_records (
+  entity_type text not null check (entity_type in ('training_sessions','training_registrations')),
+  entity_id uuid not null,
+  parent_id uuid,
+  row_data jsonb not null,
+  deleted_at timestamptz not null default transaction_timestamp(),
+  deleted_by uuid references public.profiles(id) on delete set null,
+  primary key (entity_type, entity_id)
+);
+create index if not exists deleted_training_records_parent_idx
+  on public.deleted_training_records (parent_id, deleted_at);
+alter table public.deleted_training_records enable row level security;
+drop policy if exists "deleted records owner read" on public.deleted_training_records;
+create policy "deleted records owner read"
+on public.deleted_training_records for select to authenticated
+using (public.is_trainings_owner());
+revoke all on table public.deleted_training_records from anon, public;
+grant select (entity_type,entity_id,parent_id,deleted_at)
+on table public.deleted_training_records to authenticated;
+
+create or replace function public.capture_deleted_training_record()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then return old; end if;
+  insert into public.deleted_training_records
+    (entity_type,entity_id,parent_id,row_data,deleted_at,deleted_by)
+  values
+    (tg_table_name,old.id,
+     nullif(to_jsonb(old)->>'session_id','')::uuid,
+     to_jsonb(old),transaction_timestamp(),auth.uid())
+  on conflict (entity_type,entity_id) do update set
+    parent_id = excluded.parent_id,
+    row_data = excluded.row_data,
+    deleted_at = excluded.deleted_at,
+    deleted_by = excluded.deleted_by;
+  return old;
+end;
+$$;
+revoke all on function public.capture_deleted_training_record() from public;
+
+drop trigger if exists capture_deleted_training_session on public.training_sessions;
+create trigger capture_deleted_training_session
+before delete on public.training_sessions
+for each row execute function public.capture_deleted_training_record();
+drop trigger if exists capture_deleted_training_registration on public.training_registrations;
+create trigger capture_deleted_training_registration
+before delete on public.training_registrations
+for each row execute function public.capture_deleted_training_record();
+
+create or replace function public.owner_restore_deleted_training_item(
+  p_entity_type text,
+  p_entity_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  saved public.deleted_training_records%rowtype;
+  item jsonb;
+  restored_count integer := 0;
+begin
+  if not public.is_trainings_owner() then
+    raise exception 'Само Owner може да възстановява изтрити записи.';
+  end if;
+  if p_entity_type not in ('training_sessions','training_registrations') then
+    raise exception 'Този вид запис не може да бъде възстановен.';
+  end if;
+
+  select * into saved
+  from public.deleted_training_records
+  where entity_type = p_entity_type and entity_id = p_entity_id
+  for update;
+  if saved.entity_id is null then
+    raise exception 'Запазеното копие вече не е налично.';
+  end if;
+
+  if p_entity_type = 'training_sessions' then
+    if exists (select 1 from public.training_sessions where id = p_entity_id) then
+      raise exception 'Тренировката вече е възстановена.';
+    end if;
+    item := saved.row_data;
+    insert into public.training_sessions
+      (id,date,start_time,title,location,duration,capacity,standard_capacity,
+       multisport_capacity,booking_open_hours,status,created_at,updated_at)
+    values
+      ((item->>'id')::uuid,(item->>'date')::date,(item->>'start_time')::time,
+       item->>'title',item->>'location',(item->>'duration')::integer,
+       (item->>'capacity')::integer,(item->>'standard_capacity')::integer,
+       (item->>'multisport_capacity')::integer,(item->>'booking_open_hours')::integer,
+       item->>'status',(item->>'created_at')::timestamptz,(item->>'updated_at')::timestamptz);
+
+    insert into public.training_registrations
+      (id,session_id,name,phone,tariff,booked_by,cancellation_token,cancelled_at,created_at)
+    select
+      (r.row_data->>'id')::uuid,(r.row_data->>'session_id')::uuid,
+      r.row_data->>'name',r.row_data->>'phone',r.row_data->>'tariff',
+      nullif(r.row_data->>'booked_by',''),(r.row_data->>'cancellation_token')::uuid,
+      nullif(r.row_data->>'cancelled_at','')::timestamptz,
+      (r.row_data->>'created_at')::timestamptz
+    from public.deleted_training_records r
+    where r.entity_type = 'training_registrations'
+      and r.parent_id = p_entity_id
+      and r.deleted_at = saved.deleted_at;
+    get diagnostics restored_count = row_count;
+
+    delete from public.deleted_training_records
+    where (entity_type = 'training_sessions' and entity_id = p_entity_id)
+       or (entity_type = 'training_registrations'
+           and parent_id = p_entity_id and deleted_at = saved.deleted_at);
+    return jsonb_build_object('entity_type',p_entity_type,'registrations',restored_count);
+  end if;
+
+  item := saved.row_data;
+  if not exists (
+    select 1 from public.training_sessions where id = (item->>'session_id')::uuid
+  ) then
+    raise exception 'Първо възстановете тренировката, към която е записването.';
+  end if;
+  if exists (select 1 from public.training_registrations where id = p_entity_id) then
+    raise exception 'Записването вече е възстановено.';
+  end if;
+  insert into public.training_registrations
+    (id,session_id,name,phone,tariff,booked_by,cancellation_token,cancelled_at,created_at)
+  values
+    ((item->>'id')::uuid,(item->>'session_id')::uuid,item->>'name',item->>'phone',
+     item->>'tariff',nullif(item->>'booked_by',''),
+     (item->>'cancellation_token')::uuid,
+     nullif(item->>'cancelled_at','')::timestamptz,
+     (item->>'created_at')::timestamptz);
+  delete from public.deleted_training_records
+  where entity_type = p_entity_type and entity_id = p_entity_id;
+  return jsonb_build_object('entity_type',p_entity_type,'registrations',1);
+exception
+  when unique_violation then
+    raise exception 'Съществува запис със същия телефон или идентификатор.';
+end;
+$$;
+revoke all on function public.owner_restore_deleted_training_item(text,uuid) from public;
+grant execute on function public.owner_restore_deleted_training_item(text,uuid) to authenticated;

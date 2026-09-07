@@ -511,7 +511,15 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         <ProfileManagement ownerId={profile.id} />
       )}
       {section === "backups" && canManageProfiles && <BackupPanel />}
-      {section === "history" && canViewHistory && <AuditHistoryPanel />}
+      {section === "history" && canViewHistory && (
+        <AuditHistoryPanel
+          canRestore={canManageProfiles}
+          onRestored={async (message) => {
+            setNotice(message);
+            await refresh();
+          }}
+        />
+      )}
       {section === "links" && <TrainingLinks />}
 
       {editor !== undefined && (
@@ -647,6 +655,12 @@ type AuditLog = {
   created_at: string;
 };
 
+type RestorableDeletion = {
+  entity_type: "training_sessions" | "training_registrations";
+  entity_id: string;
+  deleted_at: string;
+};
+
 const auditEntityLabels: Record<string, string> = {
   training_sessions: "тренировка",
   training_registrations: "записване",
@@ -727,30 +741,82 @@ function fallbackAuditColor(identity: string) {
   return auditActorPalette[hash % auditActorPalette.length];
 }
 
-function AuditHistoryPanel() {
+function restoreKey(entityType: string, entityId: string, deletedAt: string) {
+  return `${entityType}:${entityId}:${new Date(deletedAt).toISOString()}`;
+}
+
+function AuditHistoryPanel({
+  canRestore,
+  onRestored,
+}: {
+  canRestore: boolean;
+  onRestored: (message: string) => Promise<void>;
+}) {
   const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [restorable, setRestorable] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [restoring, setRestoring] = useState<string | null>(null);
   const [error, setError] = useState("");
   const loadHistory = useCallback(async () => {
     if (!supabase) return;
     setLoading(true);
-    const { data, error: requestError } = await supabase
+    const historyRequest = supabase
       .from("audit_logs")
-      .select(
-        "id,actor_email,actor_name,actor_color,action,entity_type,entity_id,details,created_at",
-      )
+      .select("id,actor_email,actor_name,actor_color,action,entity_type,entity_id,details,created_at")
       .order("created_at", { ascending: false })
       .limit(300);
+    const recycleRequest = canRestore
+      ? supabase
+          .from("deleted_training_records")
+          .select("entity_type,entity_id,deleted_at")
+      : Promise.resolve({ data: [], error: null });
+    const [{ data, error: requestError }, recycleResult] = await Promise.all([
+      historyRequest,
+      recycleRequest,
+    ]);
     if (requestError) setError(errorMessage(requestError));
+    else if (recycleResult.error) setError(errorMessage(recycleResult.error));
     else {
       setLogs((data ?? []) as AuditLog[]);
+      setRestorable(
+        new Set(
+          ((recycleResult.data ?? []) as RestorableDeletion[]).map((item) =>
+            restoreKey(item.entity_type, item.entity_id, item.deleted_at),
+          ),
+        ),
+      );
       setError("");
     }
     setLoading(false);
-  }, []);
+  }, [canRestore]);
   useEffect(() => {
     void loadHistory();
   }, [loadHistory]);
+  const restoreDeleted = async (log: AuditLog) => {
+    if (!supabase || !log.entity_id || !log.details?.label) return;
+    const entityLabel = auditEntityLabels[log.entity_type] ?? "запис";
+    if (!window.confirm(`Да възстановя ли ${entityLabel} „${log.details.label}“?`))
+      return;
+    const key = restoreKey(log.entity_type, log.entity_id, log.created_at);
+    setRestoring(key);
+    const { data, error: requestError } = await supabase.rpc(
+      "owner_restore_deleted_training_item",
+      { p_entity_type: log.entity_type, p_entity_id: log.entity_id },
+    );
+    if (requestError) setError(errorMessage(requestError));
+    else {
+      const count = Number(
+        (data as { registrations?: number } | null)?.registrations ?? 0,
+      );
+      await onRestored(
+        log.entity_type === "training_sessions"
+          ? `Тренировката е възстановена${count ? ` с ${count} записани` : ""}.`
+          : "Записването е възстановено.",
+      );
+      await loadHistory();
+    }
+    setRestoring(null);
+  };
   return (
     <section className="audit-panel">
       <div className="admin-section-heading">
@@ -783,6 +849,14 @@ function AuditHistoryPanel() {
             }).format(new Date(log.created_at));
             const label = log.details?.label?.trim();
             const changes = Object.entries(log.details?.changes ?? {});
+            const key = log.entity_id
+              ? restoreKey(log.entity_type, log.entity_id, log.created_at)
+              : "";
+            const canRestoreLog =
+              canRestore &&
+              log.action === "DELETE" &&
+              Boolean(log.entity_id) &&
+              restorable.has(key);
             return (
               <article
                 key={log.id}
@@ -827,6 +901,16 @@ function AuditHistoryPanel() {
                         </li>
                       ))}
                     </ul>
+                  )}
+                  {canRestoreLog && (
+                    <button
+                      className="audit-restore-button"
+                      type="button"
+                      disabled={restoring === key}
+                      onClick={() => void restoreDeleted(log)}
+                    >
+                      {restoring === key ? "Възстановяване…" : "↶ Възстанови"}
+                    </button>
                   )}
                 </div>
               </article>
