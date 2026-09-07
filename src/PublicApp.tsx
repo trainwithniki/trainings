@@ -926,7 +926,7 @@ function TrainingIcon({
       aria-hidden="true"
     >
       <img
-        src={`${baseUrl}training-icons/${icon}?v=posters-20260906-4`}
+        src={`${baseUrl}training-icons/${icon}?v=posters-20260907`}
         alt=""
         loading={compact ? "lazy" : "eager"}
       />
@@ -957,11 +957,11 @@ function TrainingPageHero({
           {["pilates", "zumba", "tae-bo", "step-aerobics", "kids-conditioning", "body-training"].includes(page.slug) && (
             <source
               media="(max-width: 560px)"
-              srcSet={`${baseUrl}training-icons/${page.icon}?v=posters-20260906-4`}
+              srcSet={`${baseUrl}training-icons/${page.icon}?v=posters-20260907`}
             />
           )}
           <img
-            src={`${baseUrl}training-heroes/${page.hero}?v=posters-20260906-4`}
+            src={`${baseUrl}training-heroes/${page.hero}?v=posters-20260907`}
             alt={`${page.title} във Fit Body Center`}
             fetchPriority="high"
           />
@@ -1010,7 +1010,7 @@ function TrainingDirectory({ current }: { current?: TrainingPage }) {
           >
             <div>
               <img
-                src={`${baseUrl}training-icons/${page.icon}?v=posters-20260906-4`}
+                src={`${baseUrl}training-icons/${page.icon}?v=posters-20260907`}
                 alt=""
                 loading="lazy"
               />

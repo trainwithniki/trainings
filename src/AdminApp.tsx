@@ -599,7 +599,7 @@ function TrainingLinks() {
           return (
             <article key={page.slug} data-training={page.slug}>
               <div className="training-link-art">
-                <img src={`${baseUrl}training-icons/${page.icon}?v=posters-20260906-4`} alt="" />
+                <img src={`${baseUrl}training-icons/${page.icon}?v=posters-20260907`} alt="" />
               </div>
               <div className="training-link-details">
                 <strong>{page.title}</strong>
