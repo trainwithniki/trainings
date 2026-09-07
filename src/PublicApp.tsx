@@ -926,7 +926,7 @@ function TrainingIcon({
       aria-hidden="true"
     >
       <img
-        src={`${baseUrl}training-icons/${icon}?v=posters-20260907`}
+        src={`${baseUrl}training-icons/${icon}?v=posters-20260907b`}
         alt=""
         loading={compact ? "lazy" : "eager"}
       />
@@ -949,19 +949,19 @@ function TrainingPageHero({
   );
   return (
     <section
-      className={`training-page-hero ${["pilates", "zumba", "tae-bo", "step-aerobics", "kids-conditioning", "body-training"].includes(page.slug) ? "poster-training-hero" : ""}`}
+      className={`training-page-hero ${["pilates", "zumba", "tae-bo", "step-aerobics", "kids-conditioning", "body-training", "body-balance"].includes(page.slug) ? "poster-training-hero" : ""}`}
       data-training={page.slug}
     >
       <div className="training-page-photo">
         <picture>
-          {["pilates", "zumba", "tae-bo", "step-aerobics", "kids-conditioning", "body-training"].includes(page.slug) && (
+          {["pilates", "zumba", "tae-bo", "step-aerobics", "kids-conditioning", "body-training", "body-balance"].includes(page.slug) && (
             <source
               media="(max-width: 560px)"
-              srcSet={`${baseUrl}training-icons/${page.icon}?v=posters-20260907`}
+              srcSet={`${baseUrl}training-icons/${page.icon}?v=posters-20260907b`}
             />
           )}
           <img
-            src={`${baseUrl}training-heroes/${page.hero}?v=posters-20260907`}
+            src={`${baseUrl}training-heroes/${page.hero}?v=posters-20260907b`}
             alt={`${page.title} във Fit Body Center`}
             fetchPriority="high"
           />
@@ -1010,7 +1010,7 @@ function TrainingDirectory({ current }: { current?: TrainingPage }) {
           >
             <div>
               <img
-                src={`${baseUrl}training-icons/${page.icon}?v=posters-20260907`}
+                src={`${baseUrl}training-icons/${page.icon}?v=posters-20260907b`}
                 alt=""
                 loading="lazy"
               />
