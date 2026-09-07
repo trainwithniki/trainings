@@ -96,6 +96,7 @@ export default function PublicApp() {
   const [allSessions, setAllSessions] = useState<TrainingSession[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [splashComplete, setSplashComplete] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [modal, setModal] = useState<"booking" | "friend" | null>(null);
   const [pendingBooking, setPendingBooking] = useState<PendingBooking | null>(
@@ -113,6 +114,11 @@ export default function PublicApp() {
   const [siteContent, setSiteContent] = useState<SiteContent>(() =>
     fallbackSiteContent(activeTrainingPage),
   );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSplashComplete(true), 2000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -385,7 +391,7 @@ export default function PublicApp() {
       : `${baseUrl}trainings.html?session=${encodeURIComponent(session.id)}`;
   }
 
-  if (loading) return <PublicLoading />;
+  if (loading || !splashComplete) return <PublicLoading />;
 
   return (
     <main className="site-shell fbc-public live-public">

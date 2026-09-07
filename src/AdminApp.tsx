@@ -108,8 +108,14 @@ const shortWeekdays = ["", "Пон", "Вто", "Сря", "Чет", "Пет", "С
 
 export default function AdminApp() {
   const [loading, setLoading] = useState(true);
+  const [splashComplete, setSplashComplete] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSplashComplete(true), 2000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!supabase) {
@@ -147,7 +153,7 @@ export default function AdminApp() {
   }, []);
 
   if (!supabaseConfigured) return <MissingConfiguration />;
-  if (loading) return <AdminLoading />;
+  if (loading || !splashComplete) return <AdminLoading />;
   if (!user) return <LoginPanel />;
   if (
     !profile ||

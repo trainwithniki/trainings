@@ -583,8 +583,8 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
 /* Shared Fit Body Center loading screen. */
 .fit-loading-shell{display:grid;min-height:100dvh;place-items:center;padding:24px;background:radial-gradient(circle at 50% 43%,#e8ff0024 0,transparent 31%),#020302}
 .admin-loading{position:relative;display:grid;place-items:center;text-align:center}
-.admin-loading:before{content:"";position:absolute;z-index:0;width:min(68vw,390px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,#efff1742 0,#d9ff0017 43%,transparent 72%);filter:blur(24px);animation:fit-loading-aura 1.8s ease-in-out infinite alternate}
-.fit-loading-logo{position:relative;z-index:1;display:block;width:clamp(210px,45vw,330px);height:auto;border-radius:50%;box-shadow:0 0 15px #eeff12a3,0 0 42px #e5ff006b,0 0 88px #caff003b;filter:saturate(1.08) brightness(1.02);animation:fit-loading-logo-glow 1.8s ease-in-out infinite alternate}
+.admin-loading:before{content:"";position:absolute;z-index:0;width:min(68vw,390px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,#efff1742 0,#d9ff0017 43%,transparent 72%);filter:blur(24px);animation:fit-loading-aura 1.1s ease-in-out infinite alternate}
+.fit-loading-logo{position:relative;z-index:1;display:block;width:clamp(210px,45vw,330px);height:auto;border-radius:50%;box-shadow:0 0 15px #eeff12a3,0 0 42px #e5ff006b,0 0 88px #caff003b;filter:saturate(1.08) brightness(1.02);animation:fit-loading-logo-glow 1.1s ease-in-out infinite alternate}
 .admin-loading>span{position:relative;z-index:1;display:block;margin-top:28px;color:#f8ffb5;font-size:17px;font-weight:900;letter-spacing:.12em;text-shadow:0 0 8px #eeff62,0 0 22px #dcff25a8}
 @keyframes fit-loading-logo-glow{from{transform:scale(.985);filter:saturate(1.04) brightness(.94);box-shadow:0 0 12px #eeff128f,0 0 34px #e5ff0057,0 0 70px #caff002e}to{transform:scale(1.015);filter:saturate(1.14) brightness(1.08);box-shadow:0 0 20px #f5ff39c2,0 0 58px #e5ff0085,0 0 105px #caff004f}}
 @keyframes fit-loading-aura{from{opacity:.58;transform:scale(.92)}to{opacity:1;transform:scale(1.08)}}
