@@ -626,6 +626,7 @@ function AttendanceStatistics({
   const [aliases, setAliases] = useState<AttendeeNameAlias[]>([]);
   const [aliasesLoading, setAliasesLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState("");
+  const [nameSearch, setNameSearch] = useState("");
   const [mergeBusy, setMergeBusy] = useState(false);
   const [mergeError, setMergeError] = useState("");
   const [mergeMessage, setMergeMessage] = useState("");
@@ -742,6 +743,13 @@ function AttendanceStatistics({
     () => peopleFromRows(monthlyRows),
     [peopleFromRows, monthlyRows],
   );
+  const visibleMonthlyPeople = useMemo(() => {
+    const search = nameSearch.trim().toLocaleLowerCase("bg");
+    if (!search) return monthlyPeople;
+    return monthlyPeople.filter((person) =>
+      person.name.toLocaleLowerCase("bg").includes(search),
+    );
+  }, [monthlyPeople, nameSearch]);
   const allPeople = useMemo(
     () => peopleFromRows(attendanceRows),
     [peopleFromRows, attendanceRows],
@@ -841,11 +849,29 @@ function AttendanceStatistics({
         </div>
       </div>
 
+      <label className="statistics-search">
+        <span>Търси по име</span>
+        <input
+          type="search"
+          value={nameSearch}
+          onChange={(event) => setNameSearch(event.target.value)}
+          placeholder="Напиши име…"
+          aria-label="Търси участник по име"
+        />
+        {nameSearch && (
+          <button type="button" onClick={() => setNameSearch("")}>
+            Изчисти
+          </button>
+        )}
+      </label>
+
       {!monthsWithAttendance.length ? (
         <div className="statistics-empty">Все още няма проведени тренировки с присъстващи.</div>
+      ) : !visibleMonthlyPeople.length ? (
+        <div className="statistics-empty">Няма намерен участник с това име за избрания месец.</div>
       ) : (
         <div className="statistics-people">
-          {monthlyPeople.map((person) => (
+          {visibleMonthlyPeople.map((person) => (
             <details className="statistics-person" key={person.key}>
               <summary>
                 <div>
