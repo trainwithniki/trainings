@@ -271,6 +271,15 @@ export default function PublicApp() {
       );
     })
     .sort((a, b) => -sortSessions(a, b));
+  const recentCompleted = completed.filter((item) => {
+    const trainingEnd =
+      parseLocal(item.date, item.start_time).getTime() +
+      (item.duration ?? 60) * 60 * 1000;
+    return clock < trainingEnd + 24 * 60 * 60 * 1000;
+  });
+  const archivedCompleted = completed.filter(
+    (item) => !recentCompleted.some((recent) => recent.id === item.id),
+  );
   const nextInactive = sessions
     .filter(
       (item) =>
@@ -675,30 +684,54 @@ export default function PublicApp() {
             Няма предстоящи тренировки за текущата и следващата седмица.
           </div>
         )}
-        <div className="session-group-title completed-title">
-          <strong>Проведени</strong>
-          <span>
-            {months[new Date(clock).getMonth()]} {new Date(clock).getFullYear()}{" "}
-            г.
-          </span>
-        </div>
-        {completed.length ? (
-          <div className="session-list">
-            {completed.map((session) => (
-              <SessionCard
-                key={session.id}
-                session={session}
-                now={clock}
-                selected={session.id === selectedId}
-                onSelect={() => setSelectedId(session.id)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="public-list-empty">
-            Няма проведени тренировки през текущия месец.
-          </div>
+        {recentCompleted.length > 0 && (
+          <>
+            <div className="session-group-title completed-title recent-completed-title">
+              <strong>Наскоро проведени</strong>
+              <span>Видими 24 часа след края</span>
+            </div>
+            <div className="session-list">
+              {recentCompleted.map((session) => (
+                <SessionCard
+                  key={session.id}
+                  session={session}
+                  now={clock}
+                  selected={session.id === selectedId}
+                  onSelect={() => setSelectedId(session.id)}
+                />
+              ))}
+            </div>
+          </>
         )}
+        <details className="public-completed-accordion">
+          <summary>
+            <div>
+              <strong>Проведени</strong>
+              <span>
+                {months[new Date(clock).getMonth()]} {new Date(clock).getFullYear()} г.
+              </span>
+            </div>
+            <b>{archivedCompleted.length}</b>
+            <i aria-hidden="true">⌄</i>
+          </summary>
+          {archivedCompleted.length ? (
+            <div className="session-list public-completed-list">
+              {archivedCompleted.map((session) => (
+                <SessionCard
+                  key={session.id}
+                  session={session}
+                  now={clock}
+                  selected={session.id === selectedId}
+                  onSelect={() => setSelectedId(session.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="public-list-empty public-completed-empty">
+              Няма по-стари проведени тренировки през текущия месец.
+            </div>
+          )}
+        </details>
       </section>
 
       <section className="location-section exact-section">
