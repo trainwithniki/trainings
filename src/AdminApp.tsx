@@ -850,7 +850,9 @@ function AttendanceStatistics({
               <summary>
                 <div>
                   <strong>{person.name}</strong>
-                  <span>{person.trainings.length} вида тренировки</span>
+                  <span>
+                    {person.trainings.length} {person.trainings.length === 1 ? "вид тренировка" : "вида тренировки"}
+                  </span>
                 </div>
                 <b>{person.visits.length}</b>
                 <i>посещения</i>
