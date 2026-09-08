@@ -209,6 +209,23 @@ export default function PublicApp() {
     return () => window.clearInterval(timer);
   }, []);
   useEffect(() => {
+    if (!allSessions.length || !Object.keys(receipts).length) return;
+    const currentSessionIds = new Set(
+      allSessions
+        .filter((session) => stateOf(session, clock) !== "completed")
+        .map((session) => session.id),
+    );
+    const currentReceipts = Object.fromEntries(
+      Object.entries(receipts).filter(([sessionId]) =>
+        currentSessionIds.has(sessionId),
+      ),
+    );
+    if (Object.keys(currentReceipts).length !== Object.keys(receipts).length) {
+      setReceipts(currentReceipts);
+      window.localStorage.setItem(bookingKey, JSON.stringify(currentReceipts));
+    }
+  }, [allSessions, clock, receipts]);
+  useEffect(() => {
     document.body.classList.toggle(
       "modal-open",
       Boolean(modal || pendingBooking),
@@ -234,9 +251,15 @@ export default function PublicApp() {
       )
     : allSessions;
   const selected = sessions.find((item) => item.id === selectedId) ?? null;
-  const ownReceipt = selected ? receipts[selected.id] : undefined;
+  const ownReceipt =
+    selected && stateOf(selected, clock) !== "completed"
+      ? receipts[selected.id]
+      : undefined;
   const bookedSessions = allSessions
-    .filter((item) => Boolean(receipts[item.id]))
+    .filter(
+      (item) =>
+        Boolean(receipts[item.id]) && stateOf(item, clock) !== "completed",
+    )
     .sort(sortSessions);
   const weekStart = mondayOf(clock),
     afterNextWeek = new Date(weekStart);
