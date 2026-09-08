@@ -598,6 +598,10 @@ type AttendancePerson = {
   visits: AttendanceVisit[];
   trainings: { title: string; visits: AttendanceVisit[] }[];
 };
+type PhoneMergeSuggestion = {
+  phoneKey: string;
+  names: { key: string; name: string }[];
+};
 
 function attendeeNameKey(value: string) {
   return value
@@ -605,6 +609,13 @@ function attendeeNameKey(value: string) {
     .trim()
     .replace(/\s+/g, " ")
     .toLocaleLowerCase("bg");
+}
+
+function attendeePhoneKey(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.startsWith("359") && digits.length === 12
+    ? `0${digits.slice(3)}`
+    : digits;
 }
 
 function monthTitle(monthKey: string) {
@@ -666,6 +677,7 @@ function AttendanceStatistics({
         {
           originalKey: attendeeNameKey(name),
           originalName: name,
+          phoneKey: attendeePhoneKey(registration.phone),
           month: session.date.slice(0, 7),
           visit: {
             sessionId: session.id,
@@ -761,6 +773,24 @@ function AttendanceStatistics({
         .sort((a, b) => a.name.localeCompare(b.name, "bg")),
     [attendanceRows],
   );
+  const phoneMergeSuggestions = useMemo(() => {
+    const namesByPhone = new Map<string, Map<string, string>>();
+    attendanceRows.forEach((row) => {
+      if (!row.phoneKey || aliasesByKey.has(row.originalKey)) return;
+      const names = namesByPhone.get(row.phoneKey) ?? new Map<string, string>();
+      names.set(row.originalKey, row.originalName);
+      namesByPhone.set(row.phoneKey, names);
+    });
+    return [...namesByPhone.entries()]
+      .map(([phoneKey, names]) => ({
+        phoneKey,
+        names: [...names.entries()]
+          .map(([key, name]) => ({ key, name }))
+          .sort((a, b) => a.name.localeCompare(b.name, "bg")),
+      }))
+      .filter((suggestion) => suggestion.names.length > 1)
+      .sort((a, b) => a.names[0].name.localeCompare(b.names[0].name, "bg")) satisfies PhoneMergeSuggestion[];
+  }, [aliasesByKey, attendanceRows]);
 
   async function mergeNames(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -915,6 +945,41 @@ function AttendanceStatistics({
           </div>
           <i aria-hidden="true">⌄</i>
         </summary>
+        {phoneMergeSuggestions.length > 0 && (
+          <div className="statistics-phone-suggestions">
+            <div>
+              <strong>Предложения по телефон</strong>
+              <span>Имената по-долу са записвани с един и същ телефон. Изберете кое име да остане основно.</span>
+            </div>
+            {phoneMergeSuggestions.map((suggestion) => (
+              <form key={suggestion.phoneKey} onSubmit={mergeNames}>
+                <p>
+                  {suggestion.names.map((item) => item.name).join(" · ")}
+                  <small>Телефон, завършващ на {suggestion.phoneKey.slice(-4)}</small>
+                </p>
+                <label>
+                  <span>Вариант на име</span>
+                  <select name="source" defaultValue={suggestion.names[1].key}>
+                    {suggestion.names.map((item) => (
+                      <option key={item.key} value={item.key}>{item.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Отнеси към човек</span>
+                  <select name="target" defaultValue={suggestion.names[0].key}>
+                    {suggestion.names.map((item) => (
+                      <option key={item.key} value={item.key}>{item.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <button type="submit" disabled={mergeBusy || aliasesLoading}>
+                  {mergeBusy ? "Обединяване…" : "Обедини"}
+                </button>
+              </form>
+            ))}
+          </div>
+        )}
         <form onSubmit={mergeNames}>
           <label>
             <span>Вариант на име</span>
