@@ -16,6 +16,7 @@ create table if not exists public.profiles (
 alter table public.profiles
   add column if not exists training_access text[],
   add column if not exists can_view_history boolean not null default false,
+  add column if not exists can_view_statistics boolean not null default false,
   add column if not exists audit_color text check (audit_color is null or audit_color ~ '^#[0-9A-Fa-f]{6}$');
 
 create table if not exists public.user_invites (
@@ -32,10 +33,12 @@ create table if not exists public.user_invites (
 
 alter table public.user_invites
   add column if not exists training_access text[],
-  add column if not exists can_view_history boolean not null default false;
+  add column if not exists can_view_history boolean not null default false,
+  add column if not exists can_view_statistics boolean not null default false;
 
 update public.profiles
-set can_view_history = true
+set can_view_history = true,
+    can_view_statistics = true
 where role = 'owner' and lower(email::text) = 'svetlichaa@gmail.com';
 
 alter table public.profiles enable row level security;
@@ -102,7 +105,7 @@ begin
   where lower(email::text) = lower(new.email)
   limit 1;
 
-  insert into public.profiles (id, email, display_name, role, active, training_access, can_view_history)
+  insert into public.profiles (id, email, display_name, role, active, training_access, can_view_history, can_view_statistics)
   values (
     new.id,
     new.email,
@@ -113,6 +116,10 @@ begin
     case
       when pending.role = 'owner' then true
       else coalesce(pending.can_view_history, false)
+    end,
+    case
+      when pending.role = 'owner' then true
+      else coalesce(pending.can_view_statistics, false)
     end
   )
   on conflict (id) do update set
@@ -122,6 +129,10 @@ begin
     can_view_history = case
       when pending.id is not null then excluded.can_view_history
       else public.profiles.can_view_history
+    end,
+    can_view_statistics = case
+      when pending.id is not null then excluded.can_view_statistics
+      else public.profiles.can_view_statistics
     end,
     updated_at = now();
 
@@ -139,12 +150,14 @@ for each row execute function public.handle_new_training_user();
 
 drop function if exists public.admin_invite_user(text,text,text);
 drop function if exists public.admin_invite_user(text,text,text,text[]);
+drop function if exists public.admin_invite_user(text,text,text,text[],boolean);
 create or replace function public.admin_invite_user(
   invite_email text,
   invite_name text default null,
   invite_role text default 'editor',
   invite_training_access text[] default array[]::text[],
-  invite_can_view_history boolean default false
+  invite_can_view_history boolean default false,
+  invite_can_view_statistics boolean default false
 )
 returns uuid
 language plpgsql
@@ -165,14 +178,15 @@ begin
     raise exception 'Изберете поне една тренировка.';
   end if;
 
-  insert into public.user_invites (email, display_name, role, invited_by, accepted_at, training_access, can_view_history)
-  values (lower(trim(invite_email)), nullif(trim(invite_name),''), invite_role, auth.uid(), null, invite_training_access, invite_can_view_history)
+  insert into public.user_invites (email, display_name, role, invited_by, accepted_at, training_access, can_view_history, can_view_statistics)
+  values (lower(trim(invite_email)), nullif(trim(invite_name),''), invite_role, auth.uid(), null, invite_training_access, invite_can_view_history, invite_can_view_statistics)
   on conflict (email) do update set
     display_name = excluded.display_name,
     role = excluded.role,
     invited_by = auth.uid(),
     training_access = excluded.training_access,
     can_view_history = excluded.can_view_history,
+    can_view_statistics = excluded.can_view_statistics,
     accepted_at = null,
     created_at = now()
   returning id into invite_id;
@@ -184,6 +198,7 @@ begin
       role = invite_role,
       training_access = invite_training_access,
       can_view_history = invite_can_view_history,
+      can_view_statistics = invite_can_view_statistics,
       active = true,
       updated_at = now()
     where id = existing_user;
@@ -212,6 +227,25 @@ $$;
 revoke all on function public.can_view_training_history() from public;
 grant execute on function public.can_view_training_history() to authenticated;
 
+create or replace function public.can_view_training_statistics()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid()
+      and active = true
+      and role in ('owner','admin','editor')
+      and (can_view_statistics = true or public.is_trainings_owner())
+  )
+$$;
+
+revoke all on function public.can_view_training_statistics() from public;
+grant execute on function public.can_view_training_statistics() to authenticated;
+
 create or replace function public.owner_set_history_access(
   target_user_id uuid,
   next_can_view_history boolean
@@ -230,6 +264,29 @@ begin
   end if;
   update public.profiles
   set can_view_history = next_can_view_history, updated_at = now()
+  where id = target_user_id and role <> 'owner';
+  return found;
+end;
+$$;
+
+create or replace function public.owner_set_statistics_access(
+  target_user_id uuid,
+  next_can_view_statistics boolean
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_trainings_owner() then
+    raise exception 'Нямате право да променяте достъпа до статистиката.';
+  end if;
+  if target_user_id = auth.uid() then
+    raise exception 'Owner профилът винаги вижда статистиката.';
+  end if;
+  update public.profiles
+  set can_view_statistics = next_can_view_statistics, updated_at = now()
   where id = target_user_id and role <> 'owner';
   return found;
 end;
@@ -355,20 +412,22 @@ begin
 end;
 $$;
 
-revoke all on function public.admin_invite_user(text,text,text,text[],boolean) from public;
+revoke all on function public.admin_invite_user(text,text,text,text[],boolean,boolean) from public;
 revoke all on function public.admin_set_user_access(uuid,text,boolean) from public;
 revoke all on function public.owner_delete_training_invite(uuid) from public;
 revoke all on function public.owner_delete_training_profile(uuid) from public;
 revoke all on function public.owner_set_training_access(uuid,text[]) from public;
 revoke all on function public.owner_update_profile_name(uuid,text) from public;
 revoke all on function public.owner_set_history_access(uuid,boolean) from public;
-grant execute on function public.admin_invite_user(text,text,text,text[],boolean) to authenticated;
+revoke all on function public.owner_set_statistics_access(uuid,boolean) from public;
+grant execute on function public.admin_invite_user(text,text,text,text[],boolean,boolean) to authenticated;
 grant execute on function public.admin_set_user_access(uuid,text,boolean) to authenticated;
 grant execute on function public.owner_delete_training_invite(uuid) to authenticated;
 grant execute on function public.owner_delete_training_profile(uuid) to authenticated;
 grant execute on function public.owner_set_training_access(uuid,text[]) to authenticated;
 grant execute on function public.owner_update_profile_name(uuid,text) to authenticated;
 grant execute on function public.owner_set_history_access(uuid,boolean) to authenticated;
+grant execute on function public.owner_set_statistics_access(uuid,boolean) to authenticated;
 
 -- Backup history is written by the protected scheduled job and is visible
 -- only to the single Trainings owner account.

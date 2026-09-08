@@ -195,13 +195,15 @@ function AdminDashboard({ profile }: { profile: Profile }) {
     useState<TrainingRegistration | null>(null);
   const [heroEditor, setHeroEditor] = useState(false);
   const [section, setSection] = useState<
-    "trainings" | "links" | "profiles" | "backups" | "history"
+    "trainings" | "links" | "profiles" | "backups" | "history" | "statistics"
   >("trainings");
   const [clock, setClock] = useState(Date.now());
   const canManageProfiles =
     profile.role === "owner" &&
     profile.email.toLocaleLowerCase("en") === ownerEmail;
   const canViewHistory = canManageProfiles || Boolean(profile.can_view_history);
+  const canViewStatistics =
+    canManageProfiles || Boolean(profile.can_view_statistics);
 
   const refresh = useCallback(async () => {
     try {
@@ -376,6 +378,15 @@ function AdminDashboard({ profile }: { profile: Profile }) {
             История
           </button>
         )}
+        {canViewStatistics && (
+          <button
+            className={section === "statistics" ? "active" : ""}
+            type="button"
+            onClick={() => setSection("statistics")}
+          >
+            Статистика
+          </button>
+        )}
         {canManageProfiles && (
           <>
             <button
@@ -511,6 +522,14 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         <ProfileManagement ownerId={profile.id} />
       )}
       {section === "backups" && canManageProfiles && <BackupPanel />}
+      {section === "statistics" && canViewStatistics && (
+        <AttendanceStatistics
+          sessions={accessibleSessions}
+          registrations={registrations}
+          now={now}
+          canManageAliases={canManageProfiles}
+        />
+      )}
       {section === "history" && canViewHistory && (
         <AuditHistoryPanel
           canRestore={canManageProfiles}
@@ -557,6 +576,355 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         />
       )}
     </main>
+  );
+}
+
+type AttendeeNameAlias = {
+  id: string;
+  alias_key: string;
+  alias_name: string;
+  canonical_key: string;
+  canonical_name: string;
+};
+type AttendanceVisit = {
+  sessionId: string;
+  title: string;
+  date: string;
+  startTime: string;
+};
+type AttendancePerson = {
+  key: string;
+  name: string;
+  visits: AttendanceVisit[];
+  trainings: { title: string; visits: AttendanceVisit[] }[];
+};
+
+function attendeeNameKey(value: string) {
+  return value
+    .normalize("NFKC")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("bg");
+}
+
+function monthTitle(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  return `${months[(month || 1) - 1]} ${year} г.`;
+}
+
+function AttendanceStatistics({
+  sessions,
+  registrations,
+  now,
+  canManageAliases,
+}: {
+  sessions: TrainingSession[];
+  registrations: TrainingRegistration[];
+  now: number;
+  canManageAliases: boolean;
+}) {
+  const [aliases, setAliases] = useState<AttendeeNameAlias[]>([]);
+  const [aliasesLoading, setAliasesLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [mergeBusy, setMergeBusy] = useState(false);
+  const [mergeError, setMergeError] = useState("");
+  const [mergeMessage, setMergeMessage] = useState("");
+
+  const loadAliases = useCallback(async () => {
+    if (!canManageAliases || !supabase) {
+      setAliases([]);
+      setAliasesLoading(false);
+      return;
+    }
+    setAliasesLoading(true);
+    const { data, error: requestError } = await supabase
+      .from("attendee_name_aliases")
+      .select("id,alias_key,alias_name,canonical_key,canonical_name")
+      .order("alias_name");
+    if (requestError) setMergeError(errorMessage(requestError));
+    else {
+      setAliases((data ?? []) as AttendeeNameAlias[]);
+      setMergeError("");
+    }
+    setAliasesLoading(false);
+  }, [canManageAliases]);
+
+  useEffect(() => {
+    void loadAliases();
+  }, [loadAliases]);
+
+  const attendanceRows = useMemo(() => {
+    const sessionsById = new Map(sessions.map((session) => [session.id, session]));
+    return registrations.flatMap((registration) => {
+      const session = sessionsById.get(registration.session_id);
+      if (!session || registration.cancelled_at || !isCompleted(session, now))
+        return [];
+      const name = registration.name.trim();
+      if (!name) return [];
+      return [
+        {
+          originalKey: attendeeNameKey(name),
+          originalName: name,
+          month: session.date.slice(0, 7),
+          visit: {
+            sessionId: session.id,
+            title: session.title,
+            date: session.date,
+            startTime: session.start_time,
+          } satisfies AttendanceVisit,
+        },
+      ];
+    });
+  }, [sessions, registrations, now]);
+
+  const aliasesByKey = useMemo(
+    () => new Map(aliases.map((alias) => [alias.alias_key, alias])),
+    [aliases],
+  );
+  const monthsWithAttendance = useMemo(
+    () => [...new Set(attendanceRows.map((row) => row.month))].sort().reverse(),
+    [attendanceRows],
+  );
+  useEffect(() => {
+    if (!monthsWithAttendance.includes(selectedMonth))
+      setSelectedMonth(monthsWithAttendance[0] ?? "");
+  }, [monthsWithAttendance, selectedMonth]);
+
+  const peopleFromRows = useCallback(
+    (rows: typeof attendanceRows) => {
+      const people = new Map<string, { name: string; visits: AttendanceVisit[] }>();
+      rows.forEach((row) => {
+        const alias = aliasesByKey.get(row.originalKey);
+        const key = alias?.canonical_key ?? row.originalKey;
+        const name = alias?.canonical_name ?? row.originalName;
+        const person = people.get(key) ?? { name, visits: [] };
+        person.visits.push(row.visit);
+        people.set(key, person);
+      });
+      return [...people.entries()]
+        .map(([key, person]) => {
+          const trainings = new Map<string, AttendanceVisit[]>();
+          person.visits.forEach((visit) => {
+            const visits = trainings.get(visit.title) ?? [];
+            visits.push(visit);
+            trainings.set(visit.title, visits);
+          });
+          return {
+            key,
+            name: person.name,
+            visits: [...person.visits].sort(
+              (a, b) =>
+                `${b.date} ${b.startTime}`.localeCompare(`${a.date} ${a.startTime}`),
+            ),
+            trainings: [...trainings.entries()]
+              .map(([title, visits]) => ({
+                title,
+                visits: [...visits].sort(
+                  (a, b) =>
+                    `${b.date} ${b.startTime}`.localeCompare(
+                      `${a.date} ${a.startTime}`,
+                    ),
+                ),
+              }))
+              .sort((a, b) => b.visits.length - a.visits.length || a.title.localeCompare(b.title, "bg")),
+          } satisfies AttendancePerson;
+        })
+        .sort((a, b) => b.visits.length - a.visits.length || a.name.localeCompare(b.name, "bg"));
+    },
+    [aliasesByKey],
+  );
+
+  const monthlyRows = useMemo(
+    () => attendanceRows.filter((row) => row.month === selectedMonth),
+    [attendanceRows, selectedMonth],
+  );
+  const monthlyPeople = useMemo(
+    () => peopleFromRows(monthlyRows),
+    [peopleFromRows, monthlyRows],
+  );
+  const allPeople = useMemo(
+    () => peopleFromRows(attendanceRows),
+    [peopleFromRows, attendanceRows],
+  );
+  const allNames = useMemo(
+    () =>
+      [...new Map(attendanceRows.map((row) => [row.originalKey, row.originalName])).entries()]
+        .map(([key, name]) => ({ key, name }))
+        .sort((a, b) => a.name.localeCompare(b.name, "bg")),
+    [attendanceRows],
+  );
+
+  async function mergeNames(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase) return;
+    const form = new FormData(event.currentTarget);
+    const sourceKey = String(form.get("source") ?? "");
+    const targetKey = String(form.get("target") ?? "");
+    const source = allNames.find((item) => item.key === sourceKey);
+    const target = allPeople.find((item) => item.key === targetKey);
+    if (!source || !target || sourceKey === targetKey) {
+      setMergeError("Изберете различен вариант на име и човек, към когото да бъде отнесен.");
+      return;
+    }
+    setMergeBusy(true);
+    const { error: requestError } = await supabase
+      .from("attendee_name_aliases")
+      .upsert(
+        {
+          alias_key: source.key,
+          alias_name: source.name,
+          canonical_key: target.key,
+          canonical_name: target.name,
+        },
+        { onConflict: "alias_key" },
+      );
+    if (requestError) setMergeError(errorMessage(requestError));
+    else {
+      setMergeError("");
+      setMergeMessage(`„${source.name}“ вече се отчита към „${target.name}“.`);
+      event.currentTarget.reset();
+      await loadAliases();
+    }
+    setMergeBusy(false);
+  }
+
+  async function removeMerge(alias: AttendeeNameAlias) {
+    if (
+      !supabase ||
+      !window.confirm(`Да премахна ли обединяването на „${alias.alias_name}“?`)
+    )
+      return;
+    const { error: requestError } = await supabase
+      .from("attendee_name_aliases")
+      .delete()
+      .eq("id", alias.id);
+    if (requestError) setMergeError(errorMessage(requestError));
+    else {
+      setMergeMessage(`„${alias.alias_name}“ отново ще се отчита отделно.`);
+      await loadAliases();
+    }
+  }
+
+  return (
+    <section className="statistics-panel">
+      <div className="admin-section-heading">
+        <div>
+          <span>{canManageAliases ? "САМО ЗА OWNER" : "СТАТИСТИКА"}</span>
+          <h2>Статистика на посещенията</h2>
+        </div>
+      </div>
+      <p>
+        Посещението се отчита от неотписан запис към проведена тренировка. Начинът на посещение не се показва тук.
+      </p>
+
+      <div className="statistics-month-picker">
+        <label>
+          <span>Месец</span>
+          <select
+            value={selectedMonth}
+            onChange={(event) => setSelectedMonth(event.target.value)}
+          >
+            {monthsWithAttendance.map((month) => (
+              <option key={month} value={month}>
+                {monthTitle(month)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <strong>{monthlyPeople.length}</strong>
+          <span>човека</span>
+        </div>
+        <div>
+          <strong>{monthlyRows.length}</strong>
+          <span>посещения</span>
+        </div>
+      </div>
+
+      {!monthsWithAttendance.length ? (
+        <div className="statistics-empty">Все още няма проведени тренировки с присъстващи.</div>
+      ) : (
+        <div className="statistics-people">
+          {monthlyPeople.map((person) => (
+            <details className="statistics-person" key={person.key}>
+              <summary>
+                <div>
+                  <strong>{person.name}</strong>
+                  <span>{person.trainings.length} вида тренировки</span>
+                </div>
+                <b>{person.visits.length}</b>
+                <i>посещения</i>
+                <em aria-hidden="true">⌄</em>
+              </summary>
+              <div className="statistics-training-list">
+                {person.trainings.map((training) => (
+                  <details key={training.title}>
+                    <summary>
+                      <strong>{training.title}</strong>
+                      <span>{training.visits.length} пъти</span>
+                      <i aria-hidden="true">⌄</i>
+                    </summary>
+                    <div className="statistics-date-list">
+                      {training.visits.map((visit) => (
+                        <span key={visit.sessionId}>
+                          {shortDate(visit.date)} · {dayName(visit.date)} · {shortTime(visit.startTime)} ч.
+                        </span>
+                      ))}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </details>
+          ))}
+        </div>
+      )}
+
+      {canManageAliases && <details className="statistics-merge-panel">
+        <summary>
+          <div>
+            <strong>Обедини варианти на име</strong>
+            <span>Прави се само ръчно и важи за този конкретен човек.</span>
+          </div>
+          <i aria-hidden="true">⌄</i>
+        </summary>
+        <form onSubmit={mergeNames}>
+          <label>
+            <span>Вариант на име</span>
+            <select name="source" required defaultValue="">
+              <option value="" disabled>Избери име</option>
+              {allNames.map((item) => (
+                <option key={item.key} value={item.key}>{item.name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Отнеси към човек</span>
+            <select name="target" required defaultValue="">
+              <option value="" disabled>Избери човек</option>
+              {allPeople.map((person) => (
+                <option key={person.key} value={person.key}>{person.name}</option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" disabled={mergeBusy || aliasesLoading}>
+            {mergeBusy ? "Обединяване…" : "Обедини имената"}
+          </button>
+        </form>
+        {mergeError && <div className="admin-alert error">{mergeError}</div>}
+        {mergeMessage && <div className="admin-alert success">{mergeMessage}</div>}
+        {aliases.length > 0 && (
+          <div className="statistics-aliases">
+            <strong>Активни обединявания</strong>
+            {aliases.map((alias) => (
+              <div key={alias.id}>
+                <span>{alias.alias_name} <b>→</b> {alias.canonical_name}</span>
+                <button type="button" onClick={() => void removeMerge(alias)}>Премахни</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </details>}
+    </section>
   );
 }
 
@@ -668,6 +1036,7 @@ const auditEntityLabels: Record<string, string> = {
   site_content: "текст на начална страница",
   profiles: "профил",
   user_invites: "покана",
+  attendee_name_aliases: "обединяване на имена",
 };
 const auditActionLabels: Record<AuditLog["action"], string> = {
   INSERT: "създаде",
@@ -681,6 +1050,7 @@ const auditFieldLabels: Record<string, string> = {
   active: "Активен профил",
   training_access: "Разрешени тренировки",
   can_view_history: "Достъп до историята",
+  can_view_statistics: "Достъп до статистиката",
   audit_color: "Цвят в историята",
   title: "Име на тренировката",
   date: "Дата",
@@ -703,6 +1073,8 @@ const auditFieldLabels: Record<string, string> = {
   hero_title: "Главно заглавие",
   hero_description: "Описание",
   hero_tags: "Етикети",
+  alias_name: "Вариант на име",
+  canonical_name: "Основно име",
 };
 function auditValue(field: string, value: unknown) {
   if (value === null || value === undefined || value === "") return "Няма";
@@ -996,12 +1368,13 @@ function BackupPanel() {
 }
 
 function profileSummary(item: Profile, ownerId: string) {
-  if (item.id === ownerId) return "Owner · Всички тренировки · История";
+  if (item.id === ownerId)
+    return "Owner · Всички тренировки · История · Статистика";
   const role = item.role === "admin" ? "Администратор" : "Редактор";
   const trainings = item.training_access?.length
     ? item.training_access.join(", ")
     : "Всички тренировки";
-  return `${role} · ${trainings}${item.can_view_history ? " · История" : ""}`;
+  return `${role} · ${trainings}${item.can_view_history ? " · История" : ""}${item.can_view_statistics ? " · Статистика" : ""}`;
 }
 
 function ProfileManagement({ ownerId }: { ownerId: string }) {
@@ -1056,6 +1429,7 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
       name = String(form.get("name") ?? "").trim(),
       role = String(form.get("role") ?? "editor") as ProfileRole;
     const canViewHistory = form.get("can_view_history") === "on";
+    const canViewStatistics = form.get("can_view_statistics") === "on";
     const trainingAccess = form
       .getAll("training_access")
       .map(String)
@@ -1073,6 +1447,7 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
       invite_role: role,
       invite_training_access: trainingAccess,
       invite_can_view_history: canViewHistory,
+      invite_can_view_statistics: canViewStatistics,
     });
     setBusyId("");
     if (requestError) {
@@ -1129,6 +1504,31 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
       canViewHistory
         ? `${item.email} вече вижда историята.`
         : `Достъпът на ${item.email} до историята е премахнат.`,
+    );
+    await refresh();
+  }
+
+  async function updateStatisticsAccess(item: Profile, canViewStatistics: boolean) {
+    if (!supabase || item.id === ownerId) return;
+    setBusyId(item.id);
+    setError("");
+    setNotice("");
+    const { error: requestError } = await supabase.rpc(
+      "owner_set_statistics_access",
+      {
+        target_user_id: item.id,
+        next_can_view_statistics: canViewStatistics,
+      },
+    );
+    setBusyId("");
+    if (requestError) {
+      setError(errorMessage(requestError));
+      return;
+    }
+    setNotice(
+      canViewStatistics
+        ? `${item.email} вече вижда статистиката.`
+        : `Достъпът на ${item.email} до статистиката е премахнат.`,
     );
     await refresh();
   }
@@ -1337,6 +1737,13 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
                 <small>Достъп до действията на всички администратори</small>
               </span>
             </label>
+            <label className="history-permission">
+              <input type="checkbox" name="can_view_statistics" />
+              <span>
+                <b>Статистика</b>
+                <small>Достъп само до статистиката на разрешените тренировки</small>
+              </span>
+            </label>
           </fieldset>
         </details>
         <button disabled={busyId === "invite"}>
@@ -1486,20 +1893,36 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
                         </div>
                       )}
                       {item.id !== ownerId && (
-                        <label className="history-permission">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(item.can_view_history)}
-                            disabled={busyId === item.id}
-                            onChange={(event) =>
-                              void updateHistoryAccess(item, event.target.checked)
-                            }
-                          />
-                          <span>
-                            <b>История</b>
-                            <small>Достъп до действията на всички администратори</small>
-                          </span>
-                        </label>
+                        <>
+                          <label className="history-permission">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(item.can_view_history)}
+                              disabled={busyId === item.id}
+                              onChange={(event) =>
+                                void updateHistoryAccess(item, event.target.checked)
+                              }
+                            />
+                            <span>
+                              <b>История</b>
+                              <small>Достъп до действията на всички администратори</small>
+                            </span>
+                          </label>
+                          <label className="history-permission">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(item.can_view_statistics)}
+                              disabled={busyId === item.id}
+                              onChange={(event) =>
+                                void updateStatisticsAccess(item, event.target.checked)
+                              }
+                            />
+                            <span>
+                              <b>Статистика</b>
+                              <small>Статистика само на разрешените тренировки</small>
+                            </span>
+                          </label>
+                        </>
                       )}
                     </fieldset>
                   </details>
@@ -1528,6 +1951,11 @@ function ProfileManagement({ ownerId }: { ownerId: string }) {
                       {invite.can_view_history && (
                         <small className="invite-history-access">
                           История
+                        </small>
+                      )}
+                      {invite.can_view_statistics && (
+                        <small className="invite-history-access">
+                          Статистика
                         </small>
                       )}
                     </span>

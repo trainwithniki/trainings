@@ -489,8 +489,9 @@ begin
     when 'training_registrations' then array['name','phone','tariff','booked_by','cancelled_at']
     when 'training_templates' then array['title','weekday','start_time','location','duration','capacity','standard_capacity','multisport_capacity','booking_open_hours']
     when 'site_content' then array['hero_eyebrow','hero_title','hero_description','hero_tags']
-    when 'profiles' then array['display_name','email','role','active','training_access','can_view_history','audit_color']
-    when 'user_invites' then array['display_name','email','role','training_access','can_view_history','accepted_at']
+    when 'profiles' then array['display_name','email','role','active','training_access','can_view_history','can_view_statistics','audit_color']
+    when 'user_invites' then array['display_name','email','role','training_access','can_view_history','can_view_statistics','accepted_at']
+    when 'attendee_name_aliases' then array['alias_name','canonical_name']
     else array[]::text[]
   end;
   foreach field_name in array audited_fields loop
@@ -508,6 +509,7 @@ begin
     when 'site_content' then coalesce(row_data->>'hero_title', row_data->>'id')
     when 'profiles' then coalesce(row_data->>'display_name', row_data->>'email')
     when 'user_invites' then coalesce(row_data->>'display_name', row_data->>'email')
+    when 'attendee_name_aliases' then concat_ws(' → ', row_data->>'alias_name', row_data->>'canonical_name')
     else null
   end;
   insert into public.audit_logs
@@ -720,3 +722,32 @@ end;
 $$;
 revoke all on function public.owner_restore_deleted_training_item(text,uuid) from public;
 grant execute on function public.owner_restore_deleted_training_item(text,uuid) to authenticated;
+
+-- Owner-managed name aliases used only for attendance statistics. A variant is
+-- never matched automatically: it is counted under another person only after
+-- the Owner explicitly creates this mapping.
+create table if not exists public.attendee_name_aliases (
+  id uuid primary key default gen_random_uuid(),
+  alias_key text not null unique,
+  alias_name text not null,
+  canonical_key text not null,
+  canonical_name text not null,
+  created_by uuid default auth.uid() references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (length(trim(alias_key)) > 0),
+  check (length(trim(canonical_key)) > 0),
+  check (alias_key <> canonical_key)
+);
+alter table public.attendee_name_aliases enable row level security;
+drop policy if exists "attendance aliases owner access" on public.attendee_name_aliases;
+create policy "attendance aliases owner access"
+on public.attendee_name_aliases for all to authenticated
+using (public.is_trainings_owner())
+with check (public.is_trainings_owner());
+revoke all on table public.attendee_name_aliases from anon, public;
+grant select, insert, update, delete on table public.attendee_name_aliases to authenticated;
+
+drop trigger if exists audit_attendee_name_aliases on public.attendee_name_aliases;
+create trigger audit_attendee_name_aliases after insert or update or delete on public.attendee_name_aliases
+for each row execute function public.record_admin_audit();
