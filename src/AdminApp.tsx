@@ -854,7 +854,7 @@ function AttendanceStatistics({
                 </div>
                 <b>{person.visits.length}</b>
                 <i>посещения</i>
-                <em aria-hidden="true">⌄</em>
+                <em className="statistics-toggle" aria-hidden="true">+</em>
               </summary>
               <div className="statistics-training-list">
                 {person.trainings.map((training) => (
@@ -862,7 +862,7 @@ function AttendanceStatistics({
                     <summary>
                       <strong>{training.title}</strong>
                       <span>{training.visits.length} пъти</span>
-                      <i aria-hidden="true">⌄</i>
+                      <i className="statistics-toggle" aria-hidden="true">+</i>
                     </summary>
                     <div className="statistics-date-list">
                       {training.visits.map((visit) => (
