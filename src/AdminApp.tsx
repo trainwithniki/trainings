@@ -793,7 +793,7 @@ function AttendanceStatistics({
     return [...matchingPeople].sort((a, b) =>
       peopleSort === "name"
         ? a.name.localeCompare(b.name, "bg")
-        : b.trainings.length - a.trainings.length || b.visits.length - a.visits.length || a.name.localeCompare(b.name, "bg"),
+        : b.visits.length - a.visits.length || a.name.localeCompare(b.name, "bg"),
     );
   }, [monthlyPeople, nameSearch, peopleSort]);
   const allPeople = useMemo(
@@ -941,13 +941,27 @@ function AttendanceStatistics({
         )}
       </label>
 
-      <label className="statistics-sort">
-        <span>Подреди хората</span>
-        <select value={peopleSort} onChange={(event) => setPeopleSort(event.target.value as "training-count" | "name")}>
-          <option value="training-count">По брой тренировки</option>
-          <option value="name">По име (А–Я)</option>
-        </select>
-      </label>
+      <div className="statistics-sort" aria-label="Сортирай участниците">
+        <span>Сортирай</span>
+        <div>
+          <button
+            type="button"
+            className={peopleSort === "name" ? "active" : ""}
+            aria-pressed={peopleSort === "name"}
+            onClick={() => setPeopleSort("name")}
+          >
+            По име
+          </button>
+          <button
+            type="button"
+            className={peopleSort === "training-count" ? "active" : ""}
+            aria-pressed={peopleSort === "training-count"}
+            onClick={() => setPeopleSort("training-count")}
+          >
+            По посещения
+          </button>
+        </div>
+      </div>
 
       {!monthsWithAttendance.length ? (
         <div className="statistics-empty">Все още няма проведени тренировки с присъстващи.</div>
