@@ -595,6 +595,7 @@ type AttendanceVisit = {
 type AttendancePerson = {
   key: string;
   name: string;
+  phone: string;
   visits: AttendanceVisit[];
   trainings: { title: string; visits: AttendanceVisit[] }[];
 };
@@ -677,6 +678,7 @@ function AttendanceStatistics({
         {
           originalKey: attendeeNameKey(name),
           originalName: name,
+          phone: registration.phone.trim(),
           phoneKey: attendeePhoneKey(registration.phone),
           month: session.date.slice(0, 7),
           visit: {
@@ -705,12 +707,17 @@ function AttendanceStatistics({
 
   const peopleFromRows = useCallback(
     (rows: typeof attendanceRows) => {
-      const people = new Map<string, { name: string; visits: AttendanceVisit[] }>();
+      const people = new Map<string, { name: string; phone: string; latestVisitAt: string; visits: AttendanceVisit[] }>();
       rows.forEach((row) => {
         const alias = aliasesByKey.get(row.originalKey);
         const key = alias?.canonical_key ?? row.originalKey;
         const name = alias?.canonical_name ?? row.originalName;
-        const person = people.get(key) ?? { name, visits: [] };
+        const visitAt = `${row.visit.date} ${row.visit.startTime}`;
+        const person = people.get(key) ?? { name, phone: row.phone, latestVisitAt: visitAt, visits: [] };
+        if (visitAt > person.latestVisitAt) {
+          person.phone = row.phone;
+          person.latestVisitAt = visitAt;
+        }
         person.visits.push(row.visit);
         people.set(key, person);
       });
@@ -725,6 +732,7 @@ function AttendanceStatistics({
           return {
             key,
             name: person.name,
+            phone: person.phone,
             visits: [...person.visits].sort(
               (a, b) =>
                 `${b.date} ${b.startTime}`.localeCompare(`${a.date} ${a.startTime}`),
@@ -906,6 +914,7 @@ function AttendanceStatistics({
               <summary>
                 <div>
                   <strong>{person.name}</strong>
+                  {person.phone && <small className="statistics-person-phone">{person.phone}</small>}
                   <span>
                     {person.trainings.length} {person.trainings.length === 1 ? "вид тренировка" : "вида тренировки"}
                   </span>
