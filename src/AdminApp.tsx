@@ -639,7 +639,9 @@ function AttendanceStatistics({
   const [aliasesLoading, setAliasesLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [nameSearch, setNameSearch] = useState("");
+  const [peopleSort, setPeopleSort] = useState<"training-count" | "name">("training-count");
   const [mergeBusy, setMergeBusy] = useState(false);
+  const [activeMergeId, setActiveMergeId] = useState("");
   const [mergeError, setMergeError] = useState("");
   const [mergeMessage, setMergeMessage] = useState("");
 
@@ -765,11 +767,17 @@ function AttendanceStatistics({
   );
   const visibleMonthlyPeople = useMemo(() => {
     const search = nameSearch.trim().toLocaleLowerCase("bg");
-    if (!search) return monthlyPeople;
-    return monthlyPeople.filter((person) =>
+    const matchingPeople = search
+      ? monthlyPeople.filter((person) =>
       person.name.toLocaleLowerCase("bg").includes(search),
+        )
+      : monthlyPeople;
+    return [...matchingPeople].sort((a, b) =>
+      peopleSort === "name"
+        ? a.name.localeCompare(b.name, "bg")
+        : b.trainings.length - a.trainings.length || b.visits.length - a.visits.length || a.name.localeCompare(b.name, "bg"),
     );
-  }, [monthlyPeople, nameSearch]);
+  }, [monthlyPeople, nameSearch, peopleSort]);
   const allPeople = useMemo(
     () => peopleFromRows(attendanceRows),
     [peopleFromRows, attendanceRows],
@@ -812,26 +820,38 @@ function AttendanceStatistics({
       setMergeError("Изберете различен вариант на име и човек, към когото да бъде отнесен.");
       return;
     }
+    const mergeId = event.currentTarget.dataset.mergeId ?? "manual";
     setMergeBusy(true);
-    const { error: requestError } = await supabase
-      .from("attendee_name_aliases")
-      .upsert(
-        {
-          alias_key: source.key,
-          alias_name: source.name,
-          canonical_key: target.key,
-          canonical_name: target.name,
-        },
-        { onConflict: "alias_key" },
-      );
-    if (requestError) setMergeError(errorMessage(requestError));
-    else {
-      setMergeError("");
-      setMergeMessage(`„${source.name}“ вече се отчита към „${target.name}“.`);
-      event.currentTarget.reset();
-      await loadAliases();
+    setActiveMergeId(mergeId);
+    try {
+      const { data, error: requestError } = await supabase
+        .from("attendee_name_aliases")
+        .upsert(
+          {
+            alias_key: source.key,
+            alias_name: source.name,
+            canonical_key: target.key,
+            canonical_name: target.name,
+          },
+          { onConflict: "alias_key" },
+        )
+        .select("id,alias_key,alias_name,canonical_key,canonical_name")
+        .single();
+      if (requestError) setMergeError(errorMessage(requestError));
+      else {
+        const savedAlias = data as AttendeeNameAlias;
+        setAliases((current) =>
+          [...current.filter((alias) => alias.alias_key !== savedAlias.alias_key), savedAlias]
+            .sort((a, b) => a.alias_name.localeCompare(b.alias_name, "bg")),
+        );
+        setMergeError("");
+        setMergeMessage(`„${source.name}“ вече се отчита към „${target.name}“.`);
+        event.currentTarget.reset();
+      }
+    } finally {
+      setMergeBusy(false);
+      setActiveMergeId("");
     }
-    setMergeBusy(false);
   }
 
   async function removeMerge(alias: AttendeeNameAlias) {
@@ -903,6 +923,14 @@ function AttendanceStatistics({
         )}
       </label>
 
+      <label className="statistics-sort">
+        <span>Подреди хората</span>
+        <select value={peopleSort} onChange={(event) => setPeopleSort(event.target.value as "training-count" | "name")}>
+          <option value="training-count">По брой тренировки</option>
+          <option value="name">По име (А–Я)</option>
+        </select>
+      </label>
+
       {!monthsWithAttendance.length ? (
         <div className="statistics-empty">Все още няма проведени тренировки с присъстващи.</div>
       ) : !visibleMonthlyPeople.length ? (
@@ -961,7 +989,7 @@ function AttendanceStatistics({
               <span>Имената по-долу са записвани с един и същ телефон. Изберете кое име да остане основно.</span>
             </div>
             {phoneMergeSuggestions.map((suggestion) => (
-              <form key={suggestion.phoneKey} onSubmit={mergeNames}>
+              <form key={suggestion.phoneKey} data-merge-id={`phone-${suggestion.phoneKey}`} onSubmit={mergeNames}>
                 <p>
                   {suggestion.names.map((item) => item.name).join(" · ")}
                   <small>Телефон, завършващ на {suggestion.phoneKey.slice(-4)}</small>
@@ -983,13 +1011,13 @@ function AttendanceStatistics({
                   </select>
                 </label>
                 <button type="submit" disabled={mergeBusy || aliasesLoading}>
-                  {mergeBusy ? "Обединяване…" : "Обедини"}
+                  {activeMergeId === `phone-${suggestion.phoneKey}` ? "Обединяване…" : "Обедини"}
                 </button>
               </form>
             ))}
           </div>
         )}
-        <form onSubmit={mergeNames}>
+        <form data-merge-id="manual" onSubmit={mergeNames}>
           <label>
             <span>Вариант на име</span>
             <select name="source" required defaultValue="">
@@ -1009,7 +1037,7 @@ function AttendanceStatistics({
             </select>
           </label>
           <button type="submit" disabled={mergeBusy || aliasesLoading}>
-            {mergeBusy ? "Обединяване…" : "Обедини имената"}
+            {activeMergeId === "manual" ? "Обединяване…" : "Обедини имената"}
           </button>
         </form>
         {mergeError && <div className="admin-alert error">{mergeError}</div>}
