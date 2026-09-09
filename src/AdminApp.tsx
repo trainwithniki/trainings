@@ -619,6 +619,10 @@ function attendeePhoneKey(value: string) {
     : digits;
 }
 
+function attendeeIdentityKey(name: string, phone: string) {
+  return `${attendeeNameKey(name)}::${attendeePhoneKey(phone) || "no-phone"}`;
+}
+
 function monthTitle(monthKey: string) {
   const [year, month] = monthKey.split("-").map(Number);
   return `${months[(month || 1) - 1]} ${year} г.`;
@@ -678,7 +682,8 @@ function AttendanceStatistics({
       if (!name) return [];
       return [
         {
-          originalKey: attendeeNameKey(name),
+          originalNameKey: attendeeNameKey(name),
+          originalKey: attendeeIdentityKey(name, registration.phone),
           originalName: name,
           phone: registration.phone.trim(),
           phoneKey: attendeePhoneKey(registration.phone),
@@ -711,8 +716,12 @@ function AttendanceStatistics({
     (rows: typeof attendanceRows) => {
       const people = new Map<string, { name: string; phone: string; latestVisitAt: string; visits: AttendanceVisit[] }>();
       rows.forEach((row) => {
-        const alias = aliasesByKey.get(row.originalKey);
-        const key = alias?.canonical_key ?? row.originalKey;
+        const directAlias = aliasesByKey.get(row.originalKey);
+        const legacyAlias = aliasesByKey.get(row.originalNameKey);
+        const alias = directAlias ?? legacyAlias;
+        const key = directAlias?.canonical_key ?? (legacyAlias
+          ? attendeeIdentityKey(legacyAlias.canonical_name, row.phone)
+          : row.originalKey);
         const name = alias?.canonical_name ?? row.originalName;
         const visitAt = `${row.visit.date} ${row.visit.startTime}`;
         const person = people.get(key) ?? { name, phone: row.phone, latestVisitAt: visitAt, visits: [] };
@@ -784,15 +793,15 @@ function AttendanceStatistics({
   );
   const allNames = useMemo(
     () =>
-      [...new Map(attendanceRows.map((row) => [row.originalKey, row.originalName])).entries()]
-        .map(([key, name]) => ({ key, name }))
-        .sort((a, b) => a.name.localeCompare(b.name, "bg")),
+      [...new Map(attendanceRows.map((row) => [row.originalKey, { name: row.originalName, phone: row.phone }])).entries()]
+        .map(([key, identity]) => ({ key, ...identity }))
+        .sort((a, b) => a.name.localeCompare(b.name, "bg") || a.phone.localeCompare(b.phone)),
     [attendanceRows],
   );
   const phoneMergeSuggestions = useMemo(() => {
     const namesByPhone = new Map<string, Map<string, string>>();
     attendanceRows.forEach((row) => {
-      if (!row.phoneKey || aliasesByKey.has(row.originalKey)) return;
+      if (!row.phoneKey || aliasesByKey.has(row.originalKey) || aliasesByKey.has(row.originalNameKey)) return;
       const names = namesByPhone.get(row.phoneKey) ?? new Map<string, string>();
       names.set(row.originalKey, row.originalName);
       namesByPhone.set(row.phoneKey, names);
@@ -1023,7 +1032,7 @@ function AttendanceStatistics({
             <select name="source" required defaultValue="">
               <option value="" disabled>Избери име</option>
               {allNames.map((item) => (
-                <option key={item.key} value={item.key}>{item.name}</option>
+                <option key={item.key} value={item.key}>{item.name} · {item.phone}</option>
               ))}
             </select>
           </label>
@@ -1032,7 +1041,7 @@ function AttendanceStatistics({
             <select name="target" required defaultValue="">
               <option value="" disabled>Избери човек</option>
               {allPeople.map((person) => (
-                <option key={person.key} value={person.key}>{person.name}</option>
+                <option key={person.key} value={person.key}>{person.name} · {person.phone}</option>
               ))}
             </select>
           </label>
