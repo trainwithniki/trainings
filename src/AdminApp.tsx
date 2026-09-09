@@ -718,11 +718,20 @@ function AttendanceStatistics({
       rows.forEach((row) => {
         const directAlias = aliasesByKey.get(row.originalKey);
         const legacyAlias = aliasesByKey.get(row.originalNameKey);
-        const alias = directAlias ?? legacyAlias;
-        const key = directAlias?.canonical_key ?? (legacyAlias
+        // An owner can merge more than two spelling variants over time. Follow the
+        // whole alias chain so every earlier variant contributes to the same total.
+        let key = directAlias?.canonical_key ?? (legacyAlias
           ? attendeeIdentityKey(legacyAlias.canonical_name, row.phone)
           : row.originalKey);
-        const name = alias?.canonical_name ?? row.originalName;
+        let name = (directAlias ?? legacyAlias)?.canonical_name ?? row.originalName;
+        const visitedKeys = new Set<string>([row.originalKey]);
+        while (!visitedKeys.has(key)) {
+          visitedKeys.add(key);
+          const nextAlias = aliasesByKey.get(key);
+          if (!nextAlias) break;
+          key = nextAlias.canonical_key;
+          name = nextAlias.canonical_name;
+        }
         const visitAt = `${row.visit.date} ${row.visit.startTime}`;
         const person = people.get(key) ?? { name, phone: row.phone, latestVisitAt: visitAt, visits: [] };
         if (visitAt > person.latestVisitAt) {
