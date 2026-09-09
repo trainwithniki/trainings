@@ -711,6 +711,7 @@ function AttendanceStatistics({
     if (!monthsWithAttendance.includes(selectedMonth))
       setSelectedMonth(monthsWithAttendance[0] ?? "");
   }, [monthsWithAttendance, selectedMonth]);
+  const selectedMonthIndex = monthsWithAttendance.indexOf(selectedMonth);
 
   const peopleFromRows = useCallback(
     (rows: typeof attendanceRows) => {
@@ -904,16 +905,34 @@ function AttendanceStatistics({
       <div className="statistics-month-picker">
         <label>
           <span>Месец</span>
-          <select
-            value={selectedMonth}
-            onChange={(event) => setSelectedMonth(event.target.value)}
-          >
-            {monthsWithAttendance.map((month) => (
-              <option key={month} value={month}>
-                {monthTitle(month)}
-              </option>
-            ))}
-          </select>
+          <div className="statistics-month-selector">
+            <button
+              type="button"
+              aria-label="Предишен месец"
+              disabled={selectedMonthIndex < 0 || selectedMonthIndex >= monthsWithAttendance.length - 1}
+              onClick={() => setSelectedMonth(monthsWithAttendance[selectedMonthIndex + 1])}
+            >
+              ←
+            </button>
+            <select
+              value={selectedMonth}
+              onChange={(event) => setSelectedMonth(event.target.value)}
+            >
+              {monthsWithAttendance.map((month) => (
+                <option key={month} value={month}>
+                  {monthTitle(month)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              aria-label="Следващ месец"
+              disabled={selectedMonthIndex <= 0}
+              onClick={() => setSelectedMonth(monthsWithAttendance[selectedMonthIndex - 1])}
+            >
+              →
+            </button>
+          </div>
         </label>
         <div>
           <strong>{monthlyPeople.length}</strong>
