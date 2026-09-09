@@ -903,37 +903,25 @@ function AttendanceStatistics({
       </p>
 
       <div className="statistics-month-picker">
-        <label>
-          <span>Месец</span>
-          <div className="statistics-month-selector">
-            <button
-              type="button"
-              aria-label="Предишен месец"
-              disabled={selectedMonthIndex < 0 || selectedMonthIndex >= monthsWithAttendance.length - 1}
-              onClick={() => setSelectedMonth(monthsWithAttendance[selectedMonthIndex + 1])}
-            >
-              ←
-            </button>
-            <select
-              value={selectedMonth}
-              onChange={(event) => setSelectedMonth(event.target.value)}
-            >
-              {monthsWithAttendance.map((month) => (
-                <option key={month} value={month}>
-                  {monthTitle(month)}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              aria-label="Следващ месец"
-              disabled={selectedMonthIndex <= 0}
-              onClick={() => setSelectedMonth(monthsWithAttendance[selectedMonthIndex - 1])}
-            >
-              →
-            </button>
-          </div>
-        </label>
+        <div className="statistics-month-selector" aria-label="Смяна на месец">
+          <button
+            type="button"
+            aria-label="Предишен месец"
+            disabled={selectedMonthIndex < 0 || selectedMonthIndex >= monthsWithAttendance.length - 1}
+            onClick={() => setSelectedMonth(monthsWithAttendance[selectedMonthIndex + 1])}
+          >
+            ‹
+          </button>
+          <strong>{selectedMonth ? monthTitle(selectedMonth) : "Няма месец"}</strong>
+          <button
+            type="button"
+            aria-label="Следващ месец"
+            disabled={selectedMonthIndex <= 0}
+            onClick={() => setSelectedMonth(monthsWithAttendance[selectedMonthIndex - 1])}
+          >
+            ›
+          </button>
+        </div>
         <div>
           <strong>{monthlyPeople.length}</strong>
           <span>човека</span>
