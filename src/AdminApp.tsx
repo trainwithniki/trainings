@@ -2373,12 +2373,11 @@ function CompletedTraining({
       <summary>
         <div>
           <strong>{shortDate(session.date)}</strong>
-          <span>
-            {dayName(session.date)} · {shortTime(session.start_time)}
-          </span>
         </div>
         <h3>{session.title}</h3>
-        <b>{registrations.length} записани</b>
+        <b aria-label={`${registrations.length} присъствали`}>
+          {registrations.length}
+        </b>
         <i>⌄</i>
       </summary>
       <div className="completed-body">
