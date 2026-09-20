@@ -1005,12 +1005,12 @@ function TrainingPageHero({
   );
   return (
     <section
-      className={`training-page-hero ${["pilates", "zumba", "tae-bo", "step-aerobics", "kids-conditioning", "body-training", "body-balance", "strong-body"].includes(page.slug) ? "poster-training-hero" : ""}`}
+      className={`training-page-hero ${["pilates", "zumba", "tae-bo", "step-aerobics", "kids-conditioning", "body-training", "body-balance", "strong-body", "circuit"].includes(page.slug) ? "poster-training-hero" : ""}`}
       data-training={page.slug}
     >
       <div className="training-page-photo">
         <picture>
-          {["pilates", "zumba", "tae-bo", "step-aerobics", "kids-conditioning", "body-training", "body-balance", "strong-body"].includes(page.slug) && (
+          {["pilates", "zumba", "tae-bo", "step-aerobics", "kids-conditioning", "body-training", "body-balance", "strong-body", "circuit"].includes(page.slug) && (
             <source
               media="(max-width: 560px)"
               srcSet={`${baseUrl}training-icons/${page.icon}?v=posters-20260907c`}

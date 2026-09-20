@@ -17,7 +17,7 @@ export const trainingPages: TrainingPage[] = [
   {slug:'strong-body',title:'Strong Body',icon:'strong-body.webp',hero:'strong-body.webp',keywords:['strong body','strong'],description:'Интензивна тренировка за сила, издръжливост и стегнато тяло.'},
   {slug:'tae-bo',title:'Tae Bo',icon:'tae-bo.webp',hero:'tae-bo.webp',keywords:['tae bo','тае бо','tae','тае'],description:'Енергична комбинация от бойни движения и кардио натоварване.'},
   {slug:'step-aerobics',title:'Степ аеробика',icon:'step-aerobics.webp',hero:'step-aerobics.webp',keywords:['step','степ'],description:'Ритмична кардио тренировка със степ платформа и много настроение.',externalUrl:'https://trainwithniki.github.io/NikiStep/'},
-  {slug:'circuit',title:'Кръгова',icon:'body-training.webp',hero:'body-training.webp',keywords:['кръгова','circuit'],description:'Функционална кръгова тренировка за сила, издръжливост и тонус.'},
+  {slug:'circuit',title:'Кръгова',icon:'circuit.jpg',hero:'circuit.jpg',keywords:['кръгова','circuit'],description:'Функционална кръгова тренировка за сила, издръжливост и тонус.'},
 ];
 
 export function trainingPageForTitle(title:string){
