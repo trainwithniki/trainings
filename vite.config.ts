@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 
-const trainingPages = ['pilates','body-balance','body-training','zumba','kids-conditioning','strong-body','tae-bo','step-aerobics'];
+const trainingPages = ['pilates','body-balance','body-training','zumba','kids-conditioning','strong-body','tae-bo','step-aerobics','circuit'];
 
 export default defineConfig({
   base: '/trainings/',

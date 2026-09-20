@@ -375,13 +375,28 @@ insert into public.training_templates (title,weekday,start_time,sort_order)
 select item.title,item.weekday,item.start_time::time,item.sort_order
 from (values
   ('Пилатес',1,'07:45',0),('Body Training',1,'08:45',1),('Пилатес',1,'18:30',2),('Strong Body',1,'19:30',3),
-  ('Body Balance',2,'08:00',4),('Зумба',2,'18:30',5),
-  ('Body Training',3,'08:00',6),('Детска кондиционна',3,'17:30',7),('Пилатес',3,'18:30',8),('Tae Bo',3,'19:30',9),
-  ('Body Balance',4,'08:00',10),('Зумба',4,'18:30',11),
-  ('Пилатес',5,'07:45',12),('Body Training',5,'08:45',13),('Tae Bo',5,'19:00',14),
-  ('Strong Body',6,'09:30',15),('Детска кондиционна',6,'10:30',16),('Кондиционен тим',7,'16:45',17)
+  ('Body Balance',2,'08:00',4),('Кръгова',2,'08:00',5),('Зумба',2,'18:30',6),
+  ('Body Training',3,'08:00',7),('Детска кондиционна',3,'17:30',8),('Пилатес',3,'18:30',9),('Tae Bo',3,'19:30',10),
+  ('Body Balance',4,'08:00',11),('Кръгова',4,'08:00',12),('Зумба',4,'18:30',13),
+  ('Пилатес',5,'07:45',14),('Body Training',5,'08:45',15),('Tae Bo',5,'19:00',16),
+  ('Strong Body',6,'09:30',17),('Детска кондиционна',6,'10:30',18),('Кондиционен тим',7,'16:45',19)
 ) as item(title,weekday,start_time,sort_order)
 where not exists (select 1 from public.training_templates);
+
+-- Add the circuit-training templates to installations that already have templates.
+insert into public.training_templates (title,weekday,start_time,sort_order)
+select item.title,item.weekday,item.start_time::time,item.sort_order
+from (values
+  ('Кръгова',2,'08:00',5),
+  ('Кръгова',4,'08:00',12)
+) as item(title,weekday,start_time,sort_order)
+where not exists (
+  select 1
+  from public.training_templates existing
+  where existing.title = item.title
+    and existing.weekday = item.weekday
+    and existing.start_time = item.start_time::time
+);
 
 -- Editable text displayed inside the public hero card.
 create table if not exists public.site_content (
