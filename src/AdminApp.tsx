@@ -108,6 +108,16 @@ const quickTemplates: QuickTemplate[] = [
   sort_order: index,
 }));
 const shortWeekdays = ["", "Пон", "Вто", "Сря", "Чет", "Пет", "Съб", "Нед"];
+const templateWeekdays = [
+  "",
+  "Понеделник",
+  "Вторник",
+  "Сряда",
+  "Четвъртък",
+  "Петък",
+  "Събота",
+  "Неделя",
+];
 
 export default function AdminApp() {
   const [loading, setLoading] = useState(true);
@@ -2841,36 +2851,48 @@ function SessionEditor({
                   {manageTemplates ? "Готово" : "⚙ Настройки"}
                 </button>
               </div>
-              <div className="schedule-template-grid">
-                {templates.map((template, index) => (
-                  <div
-                    className="schedule-template-item"
-                    key={
-                      template.id ??
-                      `${template.weekday}-${template.time}-${index}`
-                    }
-                  >
-                    <button
-                      className="template-apply"
-                      type="button"
-                      onClick={() => applyTemplate(template)}
-                    >
-                      <span>
-                        {shortWeekdays[template.weekday]} · {template.time}
-                      </span>
-                      <strong>{template.title}</strong>
-                    </button>
-                    {manageTemplates && (
-                      <button
-                        className="template-edit"
-                        type="button"
-                        onClick={() => setTemplateEditor(template)}
-                      >
-                        Редактирай
-                      </button>
-                    )}
-                  </div>
-                ))}
+              <div className="schedule-template-days">
+                {templateWeekdays.slice(1).map((weekday, index) => {
+                  const weekdayNumber = index + 1;
+                  const dayTemplates = templates.filter(
+                    (template) => template.weekday === weekdayNumber,
+                  );
+                  if (!dayTemplates.length) return null;
+                  return (
+                    <section className="schedule-template-day" key={weekday}>
+                      <h3>{weekday}</h3>
+                      <div className="schedule-template-grid">
+                        {dayTemplates.map((template) => (
+                          <div
+                            className="schedule-template-item"
+                            key={
+                              template.id ??
+                              `${template.weekday}-${template.time}-${template.title}`
+                            }
+                          >
+                            <button
+                              className="template-apply"
+                              type="button"
+                              onClick={() => applyTemplate(template)}
+                            >
+                              <span>{template.time}</span>
+                              <strong>{template.title}</strong>
+                            </button>
+                            {manageTemplates && (
+                              <button
+                                className="template-edit"
+                                type="button"
+                                onClick={() => setTemplateEditor(template)}
+                              >
+                                Редактирай
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
               </div>
             </section>
           )}
