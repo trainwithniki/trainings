@@ -730,6 +730,7 @@ body.modal-open{overflow:hidden;overscroll-behavior:none}.live-admin{max-width:8
   .poster-training-hero[data-training] .training-page-photo img{object-fit:contain;transform:none}
   .poster-training-hero:after{display:none}
   .training-directory-grid>a:is([data-training="pilates"],[data-training="zumba"],[data-training="tae-bo"],[data-training="step-aerobics"],[data-training="kids-conditioning"],[data-training="body-training"],[data-training="body-balance"],[data-training="strong-body"])>div{padding:0}
+  .training-directory-grid>a[data-training="circuit"]>div{padding:0}
 }
 /* Make the booking timestamp easier to read in the attendee list. */
 .attendee-booked-at b{font-size:10px}
