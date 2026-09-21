@@ -1198,7 +1198,10 @@ function RegisteredAttendees({
       </summary>
       <ul>
         {attendees.map((name, index) => (
-          <li key={`${name}-${index}`}>{name}</li>
+          <li key={`${name}-${index}`}>
+            <b>{index + 1}.</b>
+            {name}
+          </li>
         ))}
       </ul>
     </details>
