@@ -9,6 +9,7 @@ import {
   errorMessage,
   isBookingOpen,
   isCompleted,
+  loadPublicTrainingAttendees,
   loadSessions,
   loadSiteContent,
   months,
@@ -17,6 +18,7 @@ import {
   shortTime,
   SiteContent,
   Tariff,
+  PublicTrainingAttendee,
   TrainingSession,
 } from "./training-data";
 import {
@@ -95,6 +97,9 @@ function mondayOf(time: number) {
 
 export default function PublicApp() {
   const [allSessions, setAllSessions] = useState<TrainingSession[]>([]);
+  const [publicAttendees, setPublicAttendees] = useState<
+    PublicTrainingAttendee[]
+  >([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(true);
   const [splashComplete, setSplashComplete] = useState(() => {
@@ -137,9 +142,10 @@ export default function PublicApp() {
 
   const refresh = useCallback(async () => {
     try {
-      const [data, content] = await Promise.all([
+      const [data, content, attendees] = await Promise.all([
         loadSessions(),
         loadSiteContent(activeTrainingPage?.slug ?? "main"),
+        loadPublicTrainingAttendees(),
       ]);
       const ordered = [...data].sort(sortSessions);
       const visible = activeTrainingPage
@@ -153,6 +159,7 @@ export default function PublicApp() {
         "session",
       );
       setAllSessions(ordered);
+      setPublicAttendees(attendees);
       setSiteContent(
         activeTrainingPage && content.id === "main"
           ? fallbackSiteContent(activeTrainingPage)
@@ -251,6 +258,13 @@ export default function PublicApp() {
       )
     : allSessions;
   const selected = sessions.find((item) => item.id === selectedId) ?? null;
+  const attendeesFor = useCallback(
+    (sessionId: string) =>
+      publicAttendees
+        .filter((attendee) => attendee.session_id === sessionId)
+        .map((attendee) => attendee.name),
+    [publicAttendees],
+  );
   const ownReceipt =
     selected && stateOf(selected, clock) !== "completed"
       ? receipts[selected.id]
@@ -492,6 +506,7 @@ export default function PublicApp() {
           onBook={() => setModal("booking")}
           onUnsubscribe={unsubscribe}
           onFriend={() => setModal("friend")}
+          attendees={attendeesFor(selected.id)}
         />
       )}
 
@@ -699,6 +714,7 @@ export default function PublicApp() {
                   setSelectedId(session.id);
                   setModal("booking");
                 }}
+                attendees={attendeesFor(session.id)}
               />
             ))}
           </div>
@@ -721,6 +737,7 @@ export default function PublicApp() {
                   now={clock}
                   selected={session.id === selectedId}
                   onSelect={() => setSelectedId(session.id)}
+                  attendees={attendeesFor(session.id)}
                 />
               ))}
             </div>
@@ -746,6 +763,7 @@ export default function PublicApp() {
                   now={clock}
                   selected={session.id === selectedId}
                   onSelect={() => setSelectedId(session.id)}
+                  attendees={attendeesFor(session.id)}
                 />
               ))}
             </div>
@@ -873,6 +891,7 @@ function FeaturedSession({
   onBook,
   onUnsubscribe,
   onFriend,
+  attendees,
 }: {
   session: TrainingSession;
   now: number;
@@ -880,6 +899,7 @@ function FeaturedSession({
   onBook: () => void;
   onUnsubscribe: () => void;
   onFriend: () => void;
+  attendees: string[];
 }) {
   const state = stateOf(session, now),
     date = parseLocal(session.date),
@@ -938,6 +958,7 @@ function FeaturedSession({
         <Stopwatch minutes={session.duration} />
       </div>
       <CapacityMeter session={session} occupiedLabel="ЗАЕТИ МЕСТА" />
+      <RegisteredAttendees attendees={attendees} />
       {state === "open" &&
         (own ? (
           <div className="exact-own-actions">
@@ -1090,12 +1111,14 @@ function SessionCard({
   selected,
   onSelect,
   onBook,
+  attendees,
 }: {
   session: TrainingSession;
   now: number;
   selected: boolean;
   onSelect: () => void;
   onBook?: () => void;
+  attendees: string[];
 }) {
   const state = stateOf(session, now),
     date = parseLocal(session.date),
@@ -1141,6 +1164,7 @@ function SessionCard({
         <Stopwatch minutes={session.duration} />
         <CapacityMeter session={session} occupiedLabel="ЗАЕТИ" />
       </div>
+      <RegisteredAttendees attendees={attendees} compact />
       {state === "open" && (
         <BookingCountdown session={session} now={now} compact />
       )}
@@ -1157,6 +1181,30 @@ function SessionCard({
     </article>
   );
 }
+function RegisteredAttendees({
+  attendees,
+  compact = false,
+}: {
+  attendees: string[];
+  compact?: boolean;
+}) {
+  if (!attendees.length) return null;
+  return (
+    <details className={`public-attendees ${compact ? "compact" : ""}`}>
+      <summary>
+        <span>Записали се</span>
+        <b>{attendees.length}</b>
+        <i aria-hidden="true">⌄</i>
+      </summary>
+      <ul>
+        {attendees.map((name, index) => (
+          <li key={`${name}-${index}`}>{name}</li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 function CapacityMeter({
   session,
   occupiedLabel,

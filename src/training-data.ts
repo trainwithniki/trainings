@@ -35,6 +35,12 @@ export type TrainingRegistration = {
   created_at: string;
 };
 
+/** Public-safe attendee data: names only, never phone numbers or booking details. */
+export type PublicTrainingAttendee = {
+  session_id: string;
+  name: string;
+};
+
 export type BookingReceipt = {
   sessionId: string;
   registrationId: string;
@@ -140,6 +146,13 @@ export async function loadSessions() {
     .order("start_time");
   if (error) throw error;
   return (data || []) as TrainingSession[];
+}
+
+export async function loadPublicTrainingAttendees() {
+  if (!supabase) return [] as PublicTrainingAttendee[];
+  const { data, error } = await supabase.rpc("get_public_training_attendees");
+  if (error) throw error;
+  return (data || []) as PublicTrainingAttendee[];
 }
 
 export async function loadSiteContent(contentId = "main") {

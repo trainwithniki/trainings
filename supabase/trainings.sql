@@ -313,6 +313,23 @@ begin
 end;
 $$;
 
+-- Names are intentionally the only attendee detail visible in the public site.
+-- Past/completed sessions remain private, as do phone numbers and booking ownership.
+create or replace function public.get_public_training_attendees()
+returns table (session_id uuid, name text)
+language sql
+security definer
+set search_path = ''
+as $$
+  select r.session_id, r.name
+  from public.training_registrations r
+  join public.training_sessions s on s.id = r.session_id
+  where r.cancelled_at is null
+    and s.status <> 'completed'
+    and (s.date + s.start_time) > timezone('Europe/Sofia', now())
+  order by r.session_id, r.created_at;
+$$;
+
 revoke all on table public.training_registrations from anon, public;
 revoke select on table public.training_sessions from anon;
 grant select (id,date,start_time,title,location,duration,capacity,standard_capacity,multisport_capacity,booking_open_hours,status,registration_count,standard_registration_count,multisport_registration_count,standard_available,multisport_available,created_at,updated_at)
@@ -322,8 +339,10 @@ grant insert, update, delete on table public.training_sessions to authenticated;
 grant select, insert, update, delete on table public.training_registrations to authenticated;
 revoke all on function public.book_training(uuid,text,text,text,text) from public;
 revoke all on function public.cancel_training_registration(uuid,uuid) from public;
+revoke all on function public.get_public_training_attendees() from public;
 grant execute on function public.book_training(uuid,text,text,text,text) to anon, authenticated;
 grant execute on function public.cancel_training_registration(uuid,uuid) to anon, authenticated;
+grant execute on function public.get_public_training_attendees() to anon, authenticated;
 
 -- Editable quick-training templates, visible only to authorised administrators.
 create table if not exists public.training_templates (
