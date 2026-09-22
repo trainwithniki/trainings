@@ -358,6 +358,8 @@ create table if not exists public.support_requests (
   replied_at timestamptz
 );
 alter table public.support_requests enable row level security;
+alter table public.support_requests
+  add column if not exists sender_id uuid references public.profiles(id) on delete set null;
 
 create or replace function public.submit_public_support_request(
   p_category text,
@@ -382,7 +384,8 @@ language sql security definer set search_path = '' as $$
   from public.support_requests where public_token = any(coalesce(p_tokens, array[]::uuid[])) order by created_at desc;
 $$;
 
-create or replace function public.owner_list_support_requests()
+drop function if exists public.owner_list_support_requests();
+create function public.owner_list_support_requests()
 returns table (id uuid, category text, name text, message text, status text, owner_reply text, created_at timestamptz, replied_at timestamptz)
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -410,6 +413,50 @@ grant execute on function public.submit_public_support_request(text,text,text) t
 grant execute on function public.get_public_support_requests(uuid[]) to anon, authenticated;
 grant execute on function public.owner_list_support_requests() to authenticated;
 grant execute on function public.owner_reply_support_request(uuid,text,text) to authenticated;
+
+-- Support is an internal admin conversation: editors/admins write to the Owner,
+-- and can read only their own requests and the Owner's answers.
+create or replace function public.submit_admin_support_request(
+  p_category text,
+  p_message text
+)
+returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare request_id uuid;
+begin
+  if public.current_admin_role() not in ('owner','admin','editor') then raise exception 'Нямате достъп до поддръжката.'; end if;
+  if p_category not in ('problem','suggestion','feature') then raise exception 'Невалиден вид съобщение.'; end if;
+  insert into public.support_requests (category,message,sender_id)
+  values (p_category, trim(p_message), auth.uid()) returning id into request_id;
+  return request_id;
+end;
+$$;
+
+create or replace function public.get_my_admin_support_requests()
+returns table (id uuid, category text, message text, status text, owner_reply text, created_at timestamptz, replied_at timestamptz)
+language plpgsql security definer set search_path = '' as $$
+begin
+  if public.current_admin_role() not in ('owner','admin','editor') then raise exception 'Нямате достъп до поддръжката.'; end if;
+  return query select r.id,r.category,r.message,r.status,r.owner_reply,r.created_at,r.replied_at from public.support_requests r where r.sender_id=auth.uid() order by r.created_at desc;
+end;
+$$;
+
+drop function if exists public.owner_list_support_requests();
+create function public.owner_list_support_requests()
+returns table (id uuid, category text, sender_name text, message text, status text, owner_reply text, created_at timestamptz, replied_at timestamptz)
+language plpgsql security definer set search_path = '' as $$
+begin
+  if not public.is_trainings_owner() then raise exception 'Нямате право да виждате поддръжката.'; end if;
+  return query select r.id,r.category,coalesce(p.display_name,p.email::text,'Непознат профил'),r.message,r.status,r.owner_reply,r.created_at,r.replied_at from public.support_requests r left join public.profiles p on p.id=r.sender_id where r.sender_id is not null order by r.created_at desc;
+end;
+$$;
+
+revoke all on function public.submit_public_support_request(text,text,text) from public;
+revoke all on function public.get_public_support_requests(uuid[]) from public;
+revoke all on function public.owner_list_support_requests() from public;
+grant execute on function public.submit_admin_support_request(text,text) to authenticated;
+grant execute on function public.get_my_admin_support_requests() to authenticated;
+grant execute on function public.owner_list_support_requests() to authenticated;
 
 -- Editable quick-training templates, visible only to authorised administrators.
 create table if not exists public.training_templates (

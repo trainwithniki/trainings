@@ -53,7 +53,7 @@ type QuickTemplate = {
 type SupportRequest = {
   id: string;
   category: "problem" | "suggestion" | "feature";
-  name: string | null;
+  sender_name?: string;
   message: string;
   status: "new" | "answered" | "closed";
   owner_reply: string | null;
@@ -391,6 +391,13 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         >
           Линкове
         </button>
+        <button
+          className={section === "support" ? "active" : ""}
+          type="button"
+          onClick={() => setSection("support")}
+        >
+          Поддръжка
+        </button>
         {canViewHistory && (
           <button
             className={section === "history" ? "active" : ""}
@@ -411,13 +418,6 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         )}
         {canManageProfiles && (
           <>
-            <button
-              className={section === "support" ? "active" : ""}
-              type="button"
-              onClick={() => setSection("support")}
-            >
-              Поддръжка
-            </button>
             <button
               className={section === "backups" ? "active" : ""}
               type="button"
@@ -550,7 +550,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
       {section === "profiles" && canManageProfiles && (
         <ProfileManagement ownerId={profile.id} />
       )}
-      {section === "support" && canManageProfiles && <SupportPanel />}
+      {section === "support" && <SupportPanel owner={canManageProfiles} />}
       {section === "backups" && canManageProfiles && <BackupPanel />}
       {section === "statistics" && canViewStatistics && (
         <AttendanceStatistics
@@ -1566,14 +1566,16 @@ function BackupPanel() {
   );
 }
 
-function SupportPanel() {
+function SupportPanel({ owner }: { owner: boolean }) {
   const [items, setItems] = useState<SupportRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const refresh = useCallback(async () => {
     if (!supabase) return;
-    const { data, error: requestError } = await supabase.rpc("owner_list_support_requests");
+    const { data, error: requestError } = await supabase.rpc(
+      owner ? "owner_list_support_requests" : "get_my_admin_support_requests",
+    );
     if (requestError) setError(errorMessage(requestError));
     else { setItems((data as SupportRequest[] | null) ?? []); setError(""); }
     setLoading(false);
@@ -1593,17 +1595,31 @@ function SupportPanel() {
     if (requestError) setError(errorMessage(requestError));
     else await refresh();
   }
+  async function send(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || busyId) return;
+    const form = new FormData(event.currentTarget);
+    setBusyId("new");
+    const { error: requestError } = await supabase.rpc("submit_admin_support_request", {
+      p_category: String(form.get("category") || "problem"),
+      p_message: String(form.get("message") || ""),
+    });
+    setBusyId("");
+    if (requestError) setError(errorMessage(requestError));
+    else { event.currentTarget.reset(); await refresh(); }
+  }
   const label = (category: SupportRequest["category"]) => category === "problem" ? "Проблем" : category === "feature" ? "Нова функция" : "Предложение";
   return <section className="support-panel">
-    <div className="admin-section-heading"><div><span>OWNER</span><h2>Поддръжка</h2></div><strong>{items.filter((item) => item.status === "new").length}</strong></div>
-    <p>Съобщения от потребителите. Отговорът Ви ще бъде видим само за човека, който е изпратил съответното съобщение.</p>
+    <div className="admin-section-heading"><div><span>{owner ? "OWNER" : "ВЪТРЕШНА ВРЪЗКА"}</span><h2>Поддръжка</h2></div><strong>{owner ? items.filter((item) => item.status === "new").length : items.length}</strong></div>
+    <p>{owner ? "Съобщения от администратори и редактори. Само Вие виждате тази входяща кутия." : "Изпратете сигнал, предложение или идея директно до Owner-а."}</p>
     {error && <div className="admin-alert error">{error}</div>}
+    {!owner && <form className="support-compose" onSubmit={(event) => void send(event)}><select name="category" defaultValue="problem"><option value="problem">Сигнал за проблем</option><option value="suggestion">Предложение за подобрение</option><option value="feature">Идея за нова функция</option></select><textarea name="message" required minLength={4} maxLength={2000} placeholder="Напишете съобщение до Owner-а…" /><button disabled={busyId === "new"}>{busyId === "new" ? "Изпращане…" : "Изпрати до Owner"}</button></form>}
     {loading ? <div className="admin-data-loading">Зареждане…</div> : items.length === 0 ? <EmptyAdmin title="Няма нови съобщения" text="Когато някой изпрати сигнал или предложение, то ще се появи тук." /> : <div className="support-list">
       {items.map((item) => <article key={item.id} className={`support-item ${item.status}`}>
         <header><span>{label(item.category)}</span><b>{item.status === "new" ? "Ново" : item.status === "closed" ? "Затворено" : "Отговорено"}</b></header>
-        <strong>{item.name || "Без посочено име"}</strong><time>{registrationMoment(item.created_at).date} · {registrationMoment(item.created_at).time}</time>
+        {owner && <><strong>{item.sender_name || "Непознат профил"}</strong><time>{registrationMoment(item.created_at).date} · {registrationMoment(item.created_at).time}</time></>}
         <p>{item.message}</p>
-        <form onSubmit={(event) => void reply(event, item)}><textarea name="reply" defaultValue={item.owner_reply ?? ""} maxLength={2000} placeholder="Напишете отговор или какво ще бъде направено…" /><div><select name="status" defaultValue={item.status === "closed" ? "closed" : "answered"}><option value="answered">Отговорено</option><option value="closed">Затворено</option><option value="new">Ново</option></select><button disabled={busyId === item.id}>{busyId === item.id ? "Запазване…" : "Запази отговора"}</button></div></form>
+        {owner ? <form onSubmit={(event) => void reply(event, item)}><textarea name="reply" defaultValue={item.owner_reply ?? ""} maxLength={2000} placeholder="Напишете отговор или какво ще бъде направено…" /><div><select name="status" defaultValue={item.status === "closed" ? "closed" : "answered"}><option value="answered">Отговорено</option><option value="closed">Затворено</option><option value="new">Ново</option></select><button disabled={busyId === item.id}>{busyId === item.id ? "Запазване…" : "Запази отговора"}</button></div></form> : item.owner_reply ? <section className="support-owner-reply"><b>Отговор от Owner</b><p>{item.owner_reply}</p></section> : <small>Очаква отговор от Owner</small>}
       </article>)}
     </div>}
   </section>;
