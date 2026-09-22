@@ -404,15 +404,26 @@ begin
 end;
 $$;
 
+create or replace function public.owner_delete_support_request(p_id uuid)
+returns boolean language plpgsql security definer set search_path = '' as $$
+begin
+  if not public.is_trainings_owner() then raise exception 'Нямате право да изтривате съобщения от поддръжката.'; end if;
+  delete from public.support_requests where id = p_id;
+  return found;
+end;
+$$;
+
 revoke all on table public.support_requests from anon, authenticated;
 revoke all on function public.submit_public_support_request(text,text,text) from public;
 revoke all on function public.get_public_support_requests(uuid[]) from public;
 revoke all on function public.owner_list_support_requests() from public;
 revoke all on function public.owner_reply_support_request(uuid,text,text) from public;
+revoke all on function public.owner_delete_support_request(uuid) from public;
 grant execute on function public.submit_public_support_request(text,text,text) to anon, authenticated;
 grant execute on function public.get_public_support_requests(uuid[]) to anon, authenticated;
 grant execute on function public.owner_list_support_requests() to authenticated;
 grant execute on function public.owner_reply_support_request(uuid,text,text) to authenticated;
+grant execute on function public.owner_delete_support_request(uuid) to authenticated;
 
 -- Support is an internal admin conversation: editors/admins write to the Owner,
 -- and can read only their own requests and the Owner's answers.

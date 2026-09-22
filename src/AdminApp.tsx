@@ -1595,6 +1595,14 @@ function SupportPanel({ owner }: { owner: boolean }) {
     if (requestError) setError(errorMessage(requestError));
     else await refresh();
   }
+  async function remove(item: SupportRequest) {
+    if (!supabase || busyId || !window.confirm("Да изтрия ли това съобщение от Поддръжка?")) return;
+    setBusyId(item.id);
+    const { error: requestError } = await supabase.rpc("owner_delete_support_request", { p_id: item.id });
+    setBusyId("");
+    if (requestError) setError(errorMessage(requestError));
+    else await refresh();
+  }
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase || busyId) return;
@@ -1619,7 +1627,7 @@ function SupportPanel({ owner }: { owner: boolean }) {
         <header><span>{label(item.category)}</span><b>{item.status === "new" ? "Ново" : item.status === "closed" ? "Затворено" : "Отговорено"}</b></header>
         {owner && <><strong>{item.sender_name || "Непознат профил"}</strong><time>{registrationMoment(item.created_at).date} · {registrationMoment(item.created_at).time}</time></>}
         <p>{item.message}</p>
-        {owner ? <form onSubmit={(event) => void reply(event, item)}><textarea name="reply" defaultValue={item.owner_reply ?? ""} maxLength={2000} placeholder="Напишете отговор или какво ще бъде направено…" /><div><select name="status" defaultValue={item.status === "closed" ? "closed" : "answered"}><option value="answered">Отговорено</option><option value="closed">Затворено</option><option value="new">Ново</option></select><button disabled={busyId === item.id}>{busyId === item.id ? "Запазване…" : "Запази отговора"}</button></div></form> : item.owner_reply ? <section className="support-owner-reply"><b>Отговор от Owner</b><p>{item.owner_reply}</p></section> : <small>Очаква отговор от Owner</small>}
+        {owner ? <form onSubmit={(event) => void reply(event, item)}><textarea name="reply" defaultValue={item.owner_reply ?? ""} maxLength={2000} placeholder="Напишете отговор или какво ще бъде направено…" /><div><select name="status" defaultValue={item.status === "closed" ? "closed" : "answered"}><option value="answered">Отговорено</option><option value="closed">Затворено</option><option value="new">Ново</option></select><button disabled={busyId === item.id}>{busyId === item.id ? "Запазване…" : "Запази отговора"}</button><button className="support-delete" type="button" disabled={busyId === item.id} onClick={() => void remove(item)}>Изтрий</button></div></form> : item.owner_reply ? <section className="support-owner-reply"><b>Отговор от Owner</b><p>{item.owner_reply}</p></section> : <small>Очаква отговор от Owner</small>}
       </article>)}
     </div>}
   </section>;
