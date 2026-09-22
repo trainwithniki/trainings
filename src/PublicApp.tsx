@@ -10,6 +10,7 @@ import {
   isBookingOpen,
   isCompleted,
   loadPublicTrainingAttendees,
+  loadPublicSupportRequests,
   loadSessions,
   loadSiteContent,
   months,
@@ -19,6 +20,8 @@ import {
   SiteContent,
   Tariff,
   PublicTrainingAttendee,
+  PublicSupportRequest,
+  SupportTicket,
   TrainingSession,
 } from "./training-data";
 import {
@@ -43,6 +46,7 @@ type PendingBooking = {
   bookedBy: string | null;
 };
 const bookingKey = "fit-body-center-live-bookings";
+const supportTicketKey = "fit-body-center-support-tickets";
 const baseUrl = import.meta.env.BASE_URL;
 const publicSplashKey = "fit-body-public-splash-seen";
 const activeTrainingPage = trainingPageFromPath(window.location.pathname);
@@ -100,6 +104,8 @@ export default function PublicApp() {
   const [publicAttendees, setPublicAttendees] = useState<
     PublicTrainingAttendee[]
   >([]);
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [supportRequests, setSupportRequests] = useState<PublicSupportRequest[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(true);
   const [splashComplete, setSplashComplete] = useState(() => {
@@ -211,6 +217,24 @@ export default function PublicApp() {
       client.removeChannel(channel);
     };
   }, [refresh]);
+  const refreshSupportRequests = useCallback(async (tickets = supportTickets) => {
+    try {
+      setSupportRequests(await loadPublicSupportRequests(tickets));
+    } catch {
+      // Support remains usable even if a prior ticket cannot be refreshed.
+    }
+  }, [supportTickets]);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(supportTicketKey) || "[]");
+      if (Array.isArray(saved)) setSupportTickets(saved);
+    } catch {
+      window.localStorage.removeItem(supportTicketKey);
+    }
+  }, []);
+  useEffect(() => {
+    void refreshSupportRequests();
+  }, [refreshSupportRequests]);
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
@@ -560,6 +584,17 @@ export default function PublicApp() {
           <span>Можеш да използваш своята карта за тренировката.</span>
         </div>
       </section>
+
+      <PublicSupport
+        requests={supportRequests}
+        onSent={async (ticket) => {
+          const next = [...supportTickets, ticket];
+          setSupportTickets(next);
+          window.localStorage.setItem(supportTicketKey, JSON.stringify(next));
+          await refreshSupportRequests(next);
+          setNotice("Съобщението е изпратено. Ще получите отговор тук.");
+        }}
+      />
 
       <TrainingDirectory current={activeTrainingPage} />
 
@@ -1059,6 +1094,75 @@ function TrainingPageHero({
         </p>
         <small>{content.hero_tags}</small>
       </div>
+    </section>
+  );
+}
+
+function PublicSupport({
+  requests,
+  onSent,
+}: {
+  requests: PublicSupportRequest[];
+  onSent: (ticket: SupportTicket) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || busy) return;
+    const form = new FormData(event.currentTarget);
+    setBusy(true);
+    setError("");
+    const { data, error: requestError } = await supabase.rpc(
+      "submit_public_support_request",
+      {
+        p_category: String(form.get("category") || "problem"),
+        p_name: String(form.get("name") || ""),
+        p_message: String(form.get("message") || ""),
+      },
+    );
+    setBusy(false);
+    if (requestError) {
+      setError(errorMessage(requestError));
+      return;
+    }
+    const ticket = (data as { id: string; public_token: string }[] | null)?.[0];
+    if (!ticket) return;
+    event.currentTarget.reset();
+    await onSent({ id: ticket.id, token: ticket.public_token });
+  }
+  return (
+    <section className="public-support exact-section">
+      <div className="public-support-heading">
+        <span>ПОДДРЪЖКА</span>
+        <h2>Нещо не е наред или имате идея?</h2>
+        <p>Изпратете сигнал, предложение за подобрение или функция, която искате да добавим.</p>
+      </div>
+      <form onSubmit={submit}>
+        <select name="category" defaultValue="problem" aria-label="Вид съобщение">
+          <option value="problem">Сигнализирай за проблем</option>
+          <option value="suggestion">Предложение за подобрение</option>
+          <option value="feature">Идея за нова функция</option>
+        </select>
+        <input name="name" maxLength={100} placeholder="Име (по желание)" />
+        <textarea name="message" required minLength={4} maxLength={2000} placeholder="Опишете ни какво да подобрим или какъв е проблемът…" />
+        {error && <p className="public-support-error">{error}</p>}
+        <button disabled={busy}>{busy ? "Изпращане…" : "Изпрати до Поддръжка"}</button>
+      </form>
+      {requests.length > 0 && (
+        <details className="public-support-mine">
+          <summary><span>Моите съобщения</span><b>{requests.length}</b><i>⌄</i></summary>
+          <div>
+            {requests.map((request) => (
+              <article key={request.id}>
+                <strong>{request.category === "problem" ? "Проблем" : request.category === "feature" ? "Нова функция" : "Предложение"}</strong>
+                <p>{request.message}</p>
+                {request.owner_reply ? <section><b>Отговор от Fit Body Center</b><p>{request.owner_reply}</p></section> : <small>Очаква отговор</small>}
+              </article>
+            ))}
+          </div>
+        </details>
+      )}
     </section>
   );
 }

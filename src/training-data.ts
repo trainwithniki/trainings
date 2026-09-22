@@ -41,6 +41,19 @@ export type PublicTrainingAttendee = {
   name: string;
 };
 
+export type PublicSupportRequest = {
+  id: string;
+  category: string;
+  name: string | null;
+  message: string;
+  status: "new" | "answered" | "closed";
+  owner_reply: string | null;
+  created_at: string;
+  replied_at: string | null;
+};
+
+export type SupportTicket = { id: string; token: string };
+
 export type BookingReceipt = {
   sessionId: string;
   registrationId: string;
@@ -153,6 +166,15 @@ export async function loadPublicTrainingAttendees() {
   const { data, error } = await supabase.rpc("get_public_training_attendees");
   if (error) throw error;
   return (data || []) as PublicTrainingAttendee[];
+}
+
+export async function loadPublicSupportRequests(tickets: SupportTicket[]) {
+  if (!supabase || !tickets.length) return [] as PublicSupportRequest[];
+  const { data, error } = await supabase.rpc("get_public_support_requests", {
+    p_tokens: tickets.map((ticket) => ticket.token),
+  });
+  if (error) throw error;
+  return (data || []) as PublicSupportRequest[];
 }
 
 export async function loadSiteContent(contentId = "main") {

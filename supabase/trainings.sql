@@ -344,6 +344,73 @@ grant execute on function public.book_training(uuid,text,text,text,text) to anon
 grant execute on function public.cancel_training_registration(uuid,uuid) to anon, authenticated;
 grant execute on function public.get_public_training_attendees() to anon, authenticated;
 
+-- Public support inbox. Each browser receives an unguessable ticket token so it
+-- can read only its own requests and the Owner's replies.
+create table if not exists public.support_requests (
+  id uuid primary key default gen_random_uuid(),
+  public_token uuid not null default gen_random_uuid() unique,
+  category text not null check (category in ('problem','suggestion','feature')),
+  name text,
+  message text not null check (char_length(trim(message)) between 4 and 2000),
+  status text not null default 'new' check (status in ('new','answered','closed')),
+  owner_reply text,
+  created_at timestamptz not null default now(),
+  replied_at timestamptz
+);
+alter table public.support_requests enable row level security;
+
+create or replace function public.submit_public_support_request(
+  p_category text,
+  p_name text,
+  p_message text
+)
+returns table (id uuid, public_token uuid)
+language plpgsql security definer set search_path = '' as $$
+declare item public.support_requests%rowtype;
+begin
+  if p_category not in ('problem','suggestion','feature') then raise exception 'Невалиден вид съобщение.'; end if;
+  insert into public.support_requests (category,name,message)
+  values (p_category, nullif(trim(p_name),''), trim(p_message)) returning * into item;
+  return query select item.id, item.public_token;
+end;
+$$;
+
+create or replace function public.get_public_support_requests(p_tokens uuid[])
+returns table (id uuid, category text, name text, message text, status text, owner_reply text, created_at timestamptz, replied_at timestamptz)
+language sql security definer set search_path = '' as $$
+  select id, category, name, message, status, owner_reply, created_at, replied_at
+  from public.support_requests where public_token = any(coalesce(p_tokens, array[]::uuid[])) order by created_at desc;
+$$;
+
+create or replace function public.owner_list_support_requests()
+returns table (id uuid, category text, name text, message text, status text, owner_reply text, created_at timestamptz, replied_at timestamptz)
+language plpgsql security definer set search_path = '' as $$
+begin
+  if not public.is_trainings_owner() then raise exception 'Нямате право да виждате поддръжката.'; end if;
+  return query select r.id,r.category,r.name,r.message,r.status,r.owner_reply,r.created_at,r.replied_at from public.support_requests r order by r.created_at desc;
+end;
+$$;
+
+create or replace function public.owner_reply_support_request(p_id uuid, p_reply text, p_status text default 'answered')
+returns boolean language plpgsql security definer set search_path = '' as $$
+begin
+  if not public.is_trainings_owner() then raise exception 'Нямате право да отговаряте в поддръжката.'; end if;
+  if p_status not in ('new','answered','closed') then raise exception 'Невалиден статус.'; end if;
+  update public.support_requests set owner_reply=nullif(trim(p_reply),''), status=p_status, replied_at=case when nullif(trim(p_reply),'') is null then null else now() end where id=p_id;
+  return found;
+end;
+$$;
+
+revoke all on table public.support_requests from anon, authenticated;
+revoke all on function public.submit_public_support_request(text,text,text) from public;
+revoke all on function public.get_public_support_requests(uuid[]) from public;
+revoke all on function public.owner_list_support_requests() from public;
+revoke all on function public.owner_reply_support_request(uuid,text,text) from public;
+grant execute on function public.submit_public_support_request(text,text,text) to anon, authenticated;
+grant execute on function public.get_public_support_requests(uuid[]) to anon, authenticated;
+grant execute on function public.owner_list_support_requests() to authenticated;
+grant execute on function public.owner_reply_support_request(uuid,text,text) to authenticated;
+
 -- Editable quick-training templates, visible only to authorised administrators.
 create table if not exists public.training_templates (
   id uuid primary key default gen_random_uuid(),
