@@ -861,12 +861,17 @@ function AttendanceStatistics({
     event.preventDefault();
     if (!supabase) return;
     const form = new FormData(event.currentTarget);
-    const sourceKey = String(form.get("source") ?? "");
+    const sourceKeys = form
+      .getAll("source")
+      .map(String)
+      .filter(Boolean);
     const targetKey = String(form.get("target") ?? "");
-    const source = allNames.find((item) => item.key === sourceKey);
+    const sources = sourceKeys
+      .map((key) => allNames.find((item) => item.key === key))
+      .filter((item): item is (typeof allNames)[number] => Boolean(item));
     const target = allPeople.find((item) => item.key === targetKey);
-    if (!source || !target || sourceKey === targetKey) {
-      setMergeError("Изберете различен вариант на име и човек, към когото да бъде отнесен.");
+    if (!sources.length || sources.length !== sourceKeys.length || !target || sourceKeys.includes(targetKey)) {
+      setMergeError("Изберете поне един различен вариант на име и човек, към когото да бъдат отнесени.");
       return;
     }
     const mergeId = event.currentTarget.dataset.mergeId ?? "manual";
@@ -876,25 +881,25 @@ function AttendanceStatistics({
       const { data, error: requestError } = await supabase
         .from("attendee_name_aliases")
         .upsert(
-          {
+          sources.map((source) => ({
             alias_key: source.key,
             alias_name: source.name,
             canonical_key: target.key,
             canonical_name: target.name,
-          },
+          })),
           { onConflict: "alias_key" },
         )
         .select("id,alias_key,alias_name,canonical_key,canonical_name")
-        .single();
+        ;
       if (requestError) setMergeError(errorMessage(requestError));
       else {
-        const savedAlias = data as AttendeeNameAlias;
+        const savedAliases = (data ?? []) as AttendeeNameAlias[];
         setAliases((current) =>
-          [...current.filter((alias) => alias.alias_key !== savedAlias.alias_key), savedAlias]
+          [...current.filter((alias) => !savedAliases.some((saved) => saved.alias_key === alias.alias_key)), ...savedAliases]
             .sort((a, b) => a.alias_name.localeCompare(b.alias_name, "bg")),
         );
         setMergeError("");
-        setMergeMessage(`„${source.name}“ вече се отчита към „${target.name}“.`);
+        setMergeMessage(`${sources.length === 1 ? `„${sources[0].name}“ вече се отчита` : `${sources.length} варианта вече се отчитат`} към „${target.name}“.`);
         event.currentTarget.reset();
       }
     } finally {
@@ -1047,7 +1052,7 @@ function AttendanceStatistics({
         <summary>
           <div>
             <strong>Обедини варианти на име</strong>
-            <span>Прави се само ръчно и важи за този конкретен човек.</span>
+            <span>Изберете колкото варианта желаете — всички ще се отчитат към един конкретен човек.</span>
           </div>
           <i aria-hidden="true">⌄</i>
         </summary>
@@ -1088,9 +1093,8 @@ function AttendanceStatistics({
         )}
         <form data-merge-id="manual" onSubmit={mergeNames}>
           <label>
-            <span>Вариант на име</span>
-            <select name="source" required defaultValue="">
-              <option value="" disabled>Избери име</option>
+            <span>Варианти на име — може много</span>
+            <select name="source" required multiple size={6}>
               {allNames.map((item) => (
                 <option key={item.key} value={item.key}>{item.name} · {item.phone}</option>
               ))}
@@ -1106,7 +1110,7 @@ function AttendanceStatistics({
             </select>
           </label>
           <button type="submit" disabled={mergeBusy || aliasesLoading}>
-            {activeMergeId === "manual" ? "Обединяване…" : "Обедини имената"}
+            {activeMergeId === "manual" ? "Обединяване…" : "Обедини избраните варианти"}
           </button>
         </form>
         {mergeError && <div className="admin-alert error">{mergeError}</div>}
