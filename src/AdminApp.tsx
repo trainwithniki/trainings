@@ -221,6 +221,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
     "trainings" | "links" | "profiles" | "backups" | "history" | "statistics" | "support" | "payments"
   >("trainings");
   const [clock, setClock] = useState(Date.now());
+  const [paymentsEnabled, setPaymentsEnabled] = useState(false);
   const canManageProfiles =
     profile.role === "owner" &&
     profile.email.toLocaleLowerCase("en") === ownerEmail;
@@ -265,6 +266,16 @@ function AdminDashboard({ profile }: { profile: Profile }) {
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 30000);
     return () => window.clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (!supabase) return;
+    let live = true;
+    const client = supabase;
+    const check = async () => { const { data, error } = await client.rpc("payment_is_available"); if (live && !error) setPaymentsEnabled(data === true); };
+    void check();
+    const timer = window.setInterval(() => void check(), 30000);
+    window.addEventListener("focus", check);
+    return () => { live = false; window.clearInterval(timer); window.removeEventListener("focus", check); };
   }, []);
 
   const now = clock;
@@ -399,7 +410,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         >
           Поддръжка
         </button>
-        {(profile.role === "owner" || profile.role === "admin" || ["ceckowa@abv.bg","nikolaya_ilieva@abv.bg"].includes(profile.email.toLowerCase())) && <button type="button" className={section === "payments" ? "active" : ""} onClick={() => setSection("payments")}>Плащания</button>}
+        {(canManageProfiles || (paymentsEnabled && (profile.role === "admin" || ["ceckowa@abv.bg","nikolaya_ilieva@abv.bg"].includes(profile.email.toLowerCase())))) && <button type="button" className={section === "payments" ? "active" : ""} onClick={() => setSection("payments")}>Плащания</button>}
         {canViewHistory && (
           <button
             className={section === "history" ? "active" : ""}
@@ -553,7 +564,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         <ProfileManagement ownerId={profile.id} />
       )}
       {section === "support" && <SupportPanel owner={canManageProfiles} />}
-      {section === "payments" && (profile.role === "owner" || profile.role === "admin" || ["ceckowa@abv.bg","nikolaya_ilieva@abv.bg"].includes(profile.email.toLowerCase())) && <Payments email={profile.email} owner={canManageProfiles} />}
+      {section === "payments" && (canManageProfiles || (paymentsEnabled && (profile.role === "admin" || ["ceckowa@abv.bg","nikolaya_ilieva@abv.bg"].includes(profile.email.toLowerCase())))) && <Payments email={profile.email} owner={canManageProfiles} enabled={paymentsEnabled} onEnabledChange={setPaymentsEnabled} />}
       {section === "backups" && canManageProfiles && <BackupPanel />}
       {section === "statistics" && canViewStatistics && (
         <AttendanceStatistics

@@ -380,17 +380,38 @@ revoke all on public.payment_rates, public.payment_entries from public, anon, au
 grant select, insert on public.payment_rates to authenticated;
 grant select, insert, update, delete on public.payment_entries to authenticated;
 
+-- Only the Owner may turn payments on for other users. Preserve the switch on reruns.
+create table if not exists public.payment_settings (id boolean primary key default true check (id), enabled boolean not null default false);
+insert into public.payment_settings(id,enabled) values (true,false) on conflict (id) do nothing;
+alter table public.payment_settings enable row level security;
+revoke all on public.payment_settings from public, anon, authenticated;
+create or replace function public.payment_is_available()
+returns boolean language sql stable security definer set search_path = '' as $$
+  select coalesce((select enabled from public.payment_settings where id=true),false);
+$$;
+create or replace function public.owner_set_payments_enabled(p_enabled boolean)
+returns boolean language plpgsql security definer set search_path = '' as $$
+begin
+  if not public.is_trainings_owner() then raise exception 'Само Owner може да управлява достъпа до плащанията.'; end if;
+  if p_enabled is null then raise exception 'Невалиден статус.'; end if;
+  update public.payment_settings set enabled=p_enabled where id=true;
+  return p_enabled;
+end;
+$$;
+revoke all on function public.payment_is_available(), public.owner_set_payments_enabled(boolean) from public;
+grant execute on function public.payment_is_available(), public.owner_set_payments_enabled(boolean) to authenticated;
+
 -- Payments are visible to the owner, Nikolaya, and the assigned trainer only.
 create or replace function public.payment_can_view_all()
 returns boolean language sql stable security definer set search_path = '' as $$
-  select exists (select 1 from public.profiles p where p.id=auth.uid() and p.active and (public.is_trainings_owner() or lower(p.email::text)='nikolaya_ilieva@abv.bg'));
+  select exists (select 1 from public.profiles p where p.id=auth.uid() and p.active and (public.is_trainings_owner() or (public.payment_is_available() and lower(p.email::text)='nikolaya_ilieva@abv.bg')));
 $$;
 create or replace function public.payment_can_access_title(p_title text)
 returns boolean language sql stable security definer set search_path = '' as $$
   select exists (select 1 from public.profiles p where p.id=auth.uid() and p.active and (
     public.payment_can_view_all() or
-    (lower(p.email::text)='ceckowa@abv.bg' and lower(trim(p_title)) in ('strong body','body balance','кръгова')) or
-    (p.role in ('owner','admin') and lower(p.email::text)<>'ceckowa@abv.bg' and lower(trim(p_title)) not in ('strong body','body balance','кръгова') and public.can_access_training(p_title))
+    (public.payment_is_available() and lower(p.email::text)='ceckowa@abv.bg' and lower(trim(p_title)) in ('strong body','body balance','кръгова')) or
+    (public.payment_is_available() and p.role in ('owner','admin') and lower(p.email::text)<>'ceckowa@abv.bg' and lower(trim(p_title)) not in ('strong body','body balance','кръгова') and public.can_access_training(p_title))
   ));
 $$;
 revoke all on function public.payment_can_view_all() from public;
@@ -401,7 +422,7 @@ create policy "payment entries admin access" on public.payment_entries for all t
 using (case when session_id is null then public.payment_can_view_all() else exists (select 1 from public.training_sessions s where s.id=payment_entries.session_id and public.payment_can_access_title(s.title)) end)
 with check (case when session_id is null then public.payment_can_view_all() else exists (select 1 from public.training_sessions s where s.id=payment_entries.session_id and public.payment_can_access_title(s.title)) end);
 drop policy if exists "payment rates admin read" on public.payment_rates;
-create policy "payment rates admin read" on public.payment_rates for select to authenticated using (public.current_admin_role() in ('owner','admin') or public.payment_can_access_title('Strong Body'));
+create policy "payment rates admin read" on public.payment_rates for select to authenticated using (public.payment_can_view_all() or (public.payment_is_available() and public.current_admin_role() in ('owner','admin')) or public.payment_can_access_title('Strong Body'));
 drop policy if exists "payment rates admin insert" on public.payment_rates;
 create policy "payment rates admin insert" on public.payment_rates for insert to authenticated with check (public.payment_can_view_all() and valid_from >= (timezone('Europe/Sofia',now()))::date);
 
