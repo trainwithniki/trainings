@@ -399,7 +399,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         >
           Поддръжка
         </button>
-        {(profile.role === "owner" || profile.role === "admin") && <button type="button" className={section === "payments" ? "active" : ""} onClick={() => setSection("payments")}>Плащания</button>}
+        {(profile.role === "owner" || profile.role === "admin" || ["ceckowa@abv.bg","nikolaya_ilieva@abv.bg"].includes(profile.email.toLowerCase())) && <button type="button" className={section === "payments" ? "active" : ""} onClick={() => setSection("payments")}>Плащания</button>}
         {canViewHistory && (
           <button
             className={section === "history" ? "active" : ""}
@@ -553,7 +553,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         <ProfileManagement ownerId={profile.id} />
       )}
       {section === "support" && <SupportPanel owner={canManageProfiles} />}
-      {section === "payments" && (profile.role === "owner" || profile.role === "admin") && <Payments sessions={accessibleSessions} registrations={registrations} />}
+      {section === "payments" && (profile.role === "owner" || profile.role === "admin" || ["ceckowa@abv.bg","nikolaya_ilieva@abv.bg"].includes(profile.email.toLowerCase())) && <Payments email={profile.email} owner={canManageProfiles} />}
       {section === "backups" && canManageProfiles && <BackupPanel />}
       {section === "statistics" && canViewStatistics && (
         <AttendanceStatistics

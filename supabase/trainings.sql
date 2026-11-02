@@ -380,6 +380,41 @@ revoke all on public.payment_rates, public.payment_entries from public, anon, au
 grant select, insert on public.payment_rates to authenticated;
 grant select, insert, update, delete on public.payment_entries to authenticated;
 
+-- Payments are visible to the owner, Nikolaya, and the assigned trainer only.
+create or replace function public.payment_can_view_all()
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.profiles p where p.id=auth.uid() and p.active and (public.is_trainings_owner() or lower(p.email::text)='nikolaya_ilieva@abv.bg'));
+$$;
+create or replace function public.payment_can_access_title(p_title text)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.profiles p where p.id=auth.uid() and p.active and (
+    public.payment_can_view_all() or
+    (lower(p.email::text)='ceckowa@abv.bg' and lower(trim(p_title)) in ('strong body','body balance','кръгова')) or
+    (p.role in ('owner','admin') and lower(p.email::text)<>'ceckowa@abv.bg' and lower(trim(p_title)) not in ('strong body','body balance','кръгова') and public.can_access_training(p_title))
+  ));
+$$;
+revoke all on function public.payment_can_view_all() from public;
+revoke all on function public.payment_can_access_title(text) from public;
+grant execute on function public.payment_can_view_all(), public.payment_can_access_title(text) to authenticated;
+drop policy if exists "payment entries admin access" on public.payment_entries;
+create policy "payment entries admin access" on public.payment_entries for all to authenticated
+using (case when session_id is null then public.payment_can_view_all() else exists (select 1 from public.training_sessions s where s.id=payment_entries.session_id and public.payment_can_access_title(s.title)) end)
+with check (case when session_id is null then public.payment_can_view_all() else exists (select 1 from public.training_sessions s where s.id=payment_entries.session_id and public.payment_can_access_title(s.title)) end);
+drop policy if exists "payment rates admin read" on public.payment_rates;
+create policy "payment rates admin read" on public.payment_rates for select to authenticated using (public.current_admin_role() in ('owner','admin') or public.payment_can_access_title('Strong Body'));
+drop policy if exists "payment rates admin insert" on public.payment_rates;
+create policy "payment rates admin insert" on public.payment_rates for insert to authenticated with check (public.payment_can_view_all() and valid_from >= (timezone('Europe/Sofia',now()))::date);
+
+create or replace function public.get_payment_data()
+returns jsonb language sql stable security definer set search_path = '' as $$
+  select jsonb_build_object(
+    'sessions', coalesce((select jsonb_agg(to_jsonb(s)) from public.training_sessions s where public.payment_can_access_title(s.title)), '[]'::jsonb),
+    'registrations', coalesce((select jsonb_agg(jsonb_build_object('id',r.id,'session_id',r.session_id,'name',r.name,'tariff',r.tariff,'cancelled_at',r.cancelled_at)) from public.training_registrations r join public.training_sessions s on s.id=r.session_id where public.payment_can_access_title(s.title)), '[]'::jsonb)
+  );
+$$;
+revoke all on function public.get_payment_data() from public;
+grant execute on function public.get_payment_data() to authenticated;
+
 -- Public support inbox. Each browser receives an unguessable ticket token so it
 -- can read only its own requests and the Owner's replies.
 create table if not exists public.support_requests (
