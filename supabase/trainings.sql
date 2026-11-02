@@ -344,6 +344,42 @@ grant execute on function public.book_training(uuid,text,text,text,text) to anon
 grant execute on function public.cancel_training_registration(uuid,uuid) to anon, authenticated;
 grant execute on function public.get_public_training_attendees() to anon, authenticated;
 
+-- Private payment reporting, with effective-dated prices in euro cents.
+create table if not exists public.payment_rates (
+  valid_from date primary key,
+  prices jsonb not null,
+  created_at timestamptz not null default now(),
+  created_by uuid default auth.uid() references public.profiles(id) on delete set null
+);
+insert into public.payment_rates(valid_from,prices) values ('0001-01-01','{"multisport":170,"none":375,"card8":306,"card12":254}'::jsonb) on conflict do nothing;
+create table if not exists public.payment_entries (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid unique references public.training_sessions(id) on delete cascade,
+  date date not null,
+  start_time time not null,
+  title text not null,
+  location text not null,
+  counts jsonb not null default '{"multisport":0,"none":0,"card8":0,"card12":0}'::jsonb,
+  prices jsonb,
+  overrides jsonb not null default '{}'::jsonb,
+  check ((session_id is null and prices is not null) or (session_id is not null and prices is null))
+);
+alter table public.payment_entries add column if not exists updated_at timestamptz not null default now();
+create or replace function public.touch_payment_entry() returns trigger language plpgsql set search_path = '' as $$ begin new.updated_at = clock_timestamp(); return new; end; $$;
+drop trigger if exists payment_entry_updated_at on public.payment_entries;
+create trigger payment_entry_updated_at before update on public.payment_entries for each row execute function public.touch_payment_entry();
+alter table public.payment_rates enable row level security;
+alter table public.payment_entries enable row level security;
+drop policy if exists "payment rates admin read" on public.payment_rates;
+create policy "payment rates admin read" on public.payment_rates for select to authenticated using (public.current_admin_role() in ('owner','admin'));
+drop policy if exists "payment rates admin insert" on public.payment_rates;
+create policy "payment rates admin insert" on public.payment_rates for insert to authenticated with check (public.current_admin_role() in ('owner','admin') and valid_from >= (timezone('Europe/Sofia',now()))::date);
+drop policy if exists "payment entries admin access" on public.payment_entries;
+create policy "payment entries admin access" on public.payment_entries for all to authenticated using (public.current_admin_role() in ('owner','admin') and (session_id is null or exists (select 1 from public.training_sessions s where s.id=session_id and public.can_access_training(s.title)))) with check (public.current_admin_role() in ('owner','admin') and (session_id is null or exists (select 1 from public.training_sessions s where s.id=session_id and public.can_access_training(s.title))));
+revoke all on public.payment_rates, public.payment_entries from public, anon, authenticated;
+grant select, insert on public.payment_rates to authenticated;
+grant select, insert, update, delete on public.payment_entries to authenticated;
+
 -- Public support inbox. Each browser receives an unguessable ticket token so it
 -- can read only its own requests and the Owner's replies.
 create table if not exists public.support_requests (

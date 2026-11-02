@@ -33,6 +33,7 @@ import {
   TrainingStatus,
 } from "./training-data";
 import { trainingPages } from "./training-pages";
+import Payments from "./Payments";
 
 const baseUrl = import.meta.env.BASE_URL;
 const ownerEmail = "svetlichaa@gmail.com";
@@ -217,7 +218,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
     useState<TrainingRegistration | null>(null);
   const [heroEditor, setHeroEditor] = useState(false);
   const [section, setSection] = useState<
-    "trainings" | "links" | "profiles" | "backups" | "history" | "statistics" | "support"
+    "trainings" | "links" | "profiles" | "backups" | "history" | "statistics" | "support" | "payments"
   >("trainings");
   const [clock, setClock] = useState(Date.now());
   const canManageProfiles =
@@ -398,6 +399,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         >
           Поддръжка
         </button>
+        {(profile.role === "owner" || profile.role === "admin") && <button type="button" className={section === "payments" ? "active" : ""} onClick={() => setSection("payments")}>Плащания</button>}
         {canViewHistory && (
           <button
             className={section === "history" ? "active" : ""}
@@ -551,6 +553,7 @@ function AdminDashboard({ profile }: { profile: Profile }) {
         <ProfileManagement ownerId={profile.id} />
       )}
       {section === "support" && <SupportPanel owner={canManageProfiles} />}
+      {section === "payments" && (profile.role === "owner" || profile.role === "admin") && <Payments sessions={accessibleSessions} registrations={registrations} />}
       {section === "backups" && canManageProfiles && <BackupPanel />}
       {section === "statistics" && canViewStatistics && (
         <AttendanceStatistics
